@@ -22,11 +22,12 @@ def reshape_hebrew(text):
     bidi_text = get_display(reshaped_text)
     return bidi_text
 
-# --- Step 1: Collect all PDFs ---
+# --- Step 1: Collect all PDFs and their page counts ---
 pdf_files = sorted(pdf_folder.glob("*.pdf"))
+pdf_page_counts = [PdfReader(str(pdf)).get_num_pages() for pdf in pdf_files]
 
-# --- Step 2: Create index PDF with Hebrew support ---
-def create_index(pdf_paths, output_path, font_path):
+# --- Step 2: Create index PDF with Hebrew support and page numbers ---
+def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_counts=None):
     pdfmetrics.registerFont(TTFont("HebrewFont", str(font_path)))
     c = canvas.Canvas(str(output_path), pagesize=A4)
     width, height = A4
@@ -35,9 +36,36 @@ def create_index(pdf_paths, output_path, font_path):
     c.setFont("HebrewFont", 14)
 
     y = height - 3.5 * cm
+    songs_per_page = int((height - 5.5 * cm) // (1 * cm))  # Estimate how many fit per page
+    page_num = start_page
+    song_start_pages = []
+    for i, (path, song_pages) in enumerate(zip(pdf_paths, pdf_page_counts), start=1):
+        song_start_pages.append(page_num)
+        page_num += song_pages
+
+    page_num_iter = iter(song_start_pages)
     for i, path in enumerate(pdf_paths, start=1):
         title = path.stem  # Filename without extension
-        c.drawRightString(width - 2 * cm, y, reshape_hebrew(f"{i}. {title}"))
+        song_page = next(page_num_iter)
+        # Prepare strings
+        page_str = str(song_page)
+        title_str = reshape_hebrew(f"{i}. {title}")
+        # Calculate widths
+        page_width = c.stringWidth(page_str, "HebrewFont", 14)
+        title_width = c.stringWidth(title_str, "HebrewFont", 14)
+        # Set positions
+        right_margin = width - 2 * cm
+        left_margin = 2 * cm
+        # Draw title (right-aligned)
+        c.drawRightString(right_margin, y, title_str)
+        # Draw page number (left-aligned)
+        c.drawString(left_margin, y, page_str)
+        # Draw dots between page number and title
+        dots_start_pos = left_margin + page_width + 0.3 * cm
+        dots_end_pos = right_margin - title_width - 0.3 * cm
+        num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "HebrewFont", 14))
+        dots_str = '.' * num_dots
+        c.drawString(dots_start_pos, y, dots_str)
         y -= 1 * cm
         if y < 2 * cm:
             c.showPage()
@@ -46,7 +74,14 @@ def create_index(pdf_paths, output_path, font_path):
 
     c.save()
 
-create_index(pdf_files, index_pdf, hebrew_font_path)
+# --- Step 2.5: Estimate index page count ---
+def estimate_index_pages(num_songs):
+    height = A4[1]
+    songs_per_page = int((height - 5.5 * cm) // (1 * cm))
+    return (num_songs + songs_per_page - 1) // songs_per_page
+
+index_pages = estimate_index_pages(len(pdf_files))
+create_index(pdf_files, index_pdf, hebrew_font_path, start_page=index_pages + 1, pdf_page_counts=pdf_page_counts)
 
 # --- Step 3: Merge index + all songs ---
 merger = PdfMerger()
