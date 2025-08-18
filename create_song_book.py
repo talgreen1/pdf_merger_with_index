@@ -147,6 +147,41 @@ for i, (pdfs, page_counts, index_path, folder_name) in enumerate(subfolder_infos
     )
     start_page += index_page_counts[i + 1]  # i+1 because main index is at 0
 
+# --- Build a map from each PDF path to its start page in the merged PDF ---
+# Calculate total index pages
+num_index_pages = sum(index_page_counts)
+# Calculate start page for each song in merged order
+pdf_start_page_map = {}
+cum_page = num_index_pages + 1
+for pdf, page_count in zip(pdf_files, pdf_page_counts):
+    pdf_start_page_map[pdf] = cum_page
+    cum_page += page_count
+
+# --- Regenerate all indexes using the page map ---
+# Main index
+main_index_song_start_pages = [pdf_start_page_map[p] for p in pdf_files]
+create_index(
+    pdf_files,
+    main_index_pdf,
+    hebrew_font_path,
+    start_page=None,
+    pdf_page_counts=pdf_page_counts,
+    song_start_pages=main_index_song_start_pages
+)
+
+# Subfolder indexes
+for pdfs, page_counts, index_path, folder_name in subfolder_infos:
+    subfolder_song_start_pages = [pdf_start_page_map[p] for p in pdfs]
+    create_index(
+        pdfs,
+        index_path,
+        hebrew_font_path,
+        start_page=None,
+        pdf_page_counts=page_counts,
+        index_title=folder_name,
+        song_start_pages=subfolder_song_start_pages
+    )
+
 # --- Step 3: Merge all indexes + all songs ---
 merger = PdfMerger()
 for idx_pdf in index_pdfs:
