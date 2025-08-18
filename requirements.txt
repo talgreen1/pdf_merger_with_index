@@ -1,0 +1,4 @@
+pypdf==4.2.0
+reportlab==4.1.0
+arabic-reshaper==3.0.0
+python-bidi==0.4.2
