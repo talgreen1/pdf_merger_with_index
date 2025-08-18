@@ -148,11 +148,9 @@ for i, (pdfs, page_counts, index_path, folder_name) in enumerate(subfolder_infos
     start_page += index_page_counts[i + 1]  # i+1 because main index is at 0
 
 # --- Build a map from each PDF path to its start page in the merged PDF ---
-# Calculate total index pages
-num_index_pages = sum(index_page_counts)
-# Calculate start page for each song in merged order
+# The first song should be page 1, second song is 1 + previous song's page count, etc.
 pdf_start_page_map = {}
-cum_page = num_index_pages + 1
+cum_page = 1
 for pdf, page_count in zip(pdf_files, pdf_page_counts):
     pdf_start_page_map[pdf] = cum_page
     cum_page += page_count
