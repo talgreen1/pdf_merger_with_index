@@ -19,7 +19,8 @@ hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the 
 # --- Constants ---
 COL_TITLE = "שם השיר"
 COL_PAGE = "עמוד"
-INDEX_TITLE = "רגע של אור - שירים - תוכן עניינים"
+INDEX_TITLE = "שירון - תוכן עניינים"
+PAGE_NUMBER_POSITION = "left"  # Options: "both", "left", "right"
 
 # --- Helpers ---
 def reshape_hebrew(text):
@@ -118,11 +119,14 @@ def add_page_numbers(input_path, output_path):
     writer = PdfWriter()
 
     for i, page in enumerate(reader.pages):
-        packet_path = output_folder / "page_number.pdf"  # Use output_folder instead of undefined folder_path
+        packet_path = output_folder / "page_number.pdf"
         packet = canvas.Canvas(str(packet_path), pagesize=A4)
-        packet.setFont("Helvetica", 10)
+        packet.setFont("Helvetica", 16)
         page_number = f"{i + 1}"
-        packet.drawRightString(A4[0] - 2 * cm, 1.5 * cm, page_number)
+        if PAGE_NUMBER_POSITION in ("both", "left"):
+            packet.drawString(2 * cm, 1.5 * cm, page_number)
+        if PAGE_NUMBER_POSITION in ("both", "right"):
+            packet.drawRightString(A4[0] - 2 * cm, 1.5 * cm, page_number)
         packet.save()
 
         overlay = PdfReader(str(packet_path)).pages[0]
