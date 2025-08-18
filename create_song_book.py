@@ -36,6 +36,20 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     c.setFont("HebrewFont", 14)
 
     y = height - 3.5 * cm
+    # Add column headers
+    c.setFont("HebrewFont", 16)
+    col_title = reshape_hebrew("שם השיר")
+    col_page = reshape_hebrew("עמוד")
+    # Calculate header positions
+    right_margin = width - 2 * cm
+    left_margin = 2 * cm
+    # Song title header (right-aligned)
+    c.drawRightString(right_margin, y, col_title)
+    # Page number header (left-aligned)
+    c.drawString(left_margin, y, col_page)
+    y -= 1.2 * cm
+    c.setFont("HebrewFont", 14)
+
     songs_per_page = int((height - 5.5 * cm) // (1 * cm))  # Estimate how many fit per page
     page_num = start_page
     song_start_pages = []
