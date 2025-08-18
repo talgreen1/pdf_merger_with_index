@@ -16,6 +16,11 @@ index_pdf = output_folder / "index_temp.pdf"
 output_folder.mkdir(parents=True, exist_ok=True)
 hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the project directory
 
+# --- Constants ---
+COL_TITLE = "שם השיר"
+COL_PAGE = "עמוד"
+INDEX_TITLE = "רגע של אור - שירים - תוכן עניינים"
+
 # --- Helpers ---
 def reshape_hebrew(text):
     reshaped_text = arabic_reshaper.reshape(text)
@@ -32,14 +37,14 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     c = canvas.Canvas(str(output_path), pagesize=A4)
     width, height = A4
     c.setFont("HebrewFont", 20)
-    c.drawRightString(width - 2 * cm, height - 2 * cm, reshape_hebrew("\u05e9\u05d9\u05e8\u05d5\u05df - \u05ea\u05d5\u05db\u05df \u05e2\u05d9\u05e0\u05d9\u05d9\u05df"))
+    c.drawRightString(width - 2 * cm, height - 2 * cm, reshape_hebrew(INDEX_TITLE))
     c.setFont("HebrewFont", 14)
 
     y = height - 3.5 * cm
     # Add column headers
     c.setFont("HebrewFont", 16)
-    col_title = reshape_hebrew("שם השיר")
-    col_page = reshape_hebrew("עמוד")
+    col_title = reshape_hebrew(COL_TITLE)
+    col_page = reshape_hebrew(COL_PAGE)
     # Calculate header positions
     right_margin = width - 2 * cm
     left_margin = 2 * cm
