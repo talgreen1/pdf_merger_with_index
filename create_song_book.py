@@ -29,7 +29,7 @@ def reshape_hebrew(text):
     return bidi_text
 
 # --- Step 1: Collect all PDFs and their page counts ---
-pdf_files = sorted(pdf_folder.glob("*.pdf"))
+pdf_files = sorted(pdf_folder.rglob("*.pdf"), key=lambda p: p.stem.lower())  # Sort by filename only, case-insensitive
 pdf_page_counts = [PdfReader(str(pdf)).get_num_pages() for pdf in pdf_files]
 
 # --- Step 2: Create index PDF with Hebrew support and page numbers ---
