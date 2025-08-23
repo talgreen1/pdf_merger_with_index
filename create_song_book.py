@@ -11,7 +11,7 @@ from bidi.algorithm import get_display
 # --- Config ---
 pdf_folder = Path("c:/temp/songs/pdfs/")  # Folder for input PDF files
 output_folder = Path("c:/temp/songs/Res/")  # Folder for final output PDF
-output_pdf = output_folder / "Full_Songbook.pdf"
+output_pdf = output_folder / "רגע של אור - שירים.pdf"
 index_pdf = output_folder / "index_temp.pdf"
 output_folder.mkdir(parents=True, exist_ok=True)
 hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the project directory
@@ -19,8 +19,9 @@ hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the 
 # --- Constants ---
 COL_TITLE = "שם השיר"
 COL_PAGE = "עמוד"
-INDEX_TITLE = "שירון - תוכן עניינים"
+INDEX_TITLE = "רגע של אור - כל השירים"
 PAGE_NUMBER_POSITION = "left"  # Options: "both", "left", "right"
+INDEX_LINE_SPACING = 0.5 * cm  # Space between song lines in the index
 
 # --- Feature Flags ---
 ENABLE_SUBFOLDER_INDEX = True  # Set to True to enable subfolder indexes
@@ -58,7 +59,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     y -= 1.2 * cm
     c.setFont("HebrewFont", 14)
 
-    songs_per_page = int((height - 5.5 * cm) // (1 * cm))
+    songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
     # --- Use song_start_pages if provided, else fallback to old logic ---
     if song_start_pages is not None:
         song_start_pages_iter = iter(song_start_pages)
@@ -82,7 +83,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "HebrewFont", 14))
         dots_str = '.' * num_dots
         c.drawString(dots_start_pos, y, dots_str)
-        y -= 1 * cm
+        y -= INDEX_LINE_SPACING
         if y < 2 * cm:
             c.showPage()
             c.setFont("HebrewFont", 14)
@@ -93,7 +94,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
 # --- Step 2.5: Estimate index page count ---
 def estimate_index_pages(num_songs):
     height = A4[1]
-    songs_per_page = int((height - 5.5 * cm) // (1 * cm))
+    songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
     return (num_songs + songs_per_page - 1) // songs_per_page
 
 # --- New: Collect all indexes (main + subfolders) ---
