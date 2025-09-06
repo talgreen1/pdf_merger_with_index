@@ -16,6 +16,9 @@ index_pdf = output_folder / "index_temp.pdf"
 output_folder.mkdir(parents=True, exist_ok=True)
 hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the project directory
 
+# --- Add this line: Configurable extra index file name ---
+EXTRA_INDEX_FILENAME = "more.txt"  # Can be changed as needed
+
 # --- Constants ---
 COL_TITLE = "שם השיר"
 COL_PAGE = "עמוד"
@@ -97,7 +100,10 @@ def estimate_index_pages(num_songs):
     songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
     return (num_songs + songs_per_page - 1) // songs_per_page
 
-# --- New: Collect all indexes (main + subfolders) ---
+# --- New: Map file name to full path for fast lookup ---
+pdf_name_to_path = {p.name: p for p in pdf_files}
+
+# --- New: Collect all indexes (main + subfolders + extra indexes) ---
 index_pdfs = []
 index_page_counts = []
 
@@ -108,11 +114,50 @@ create_index(pdf_files, main_index_pdf, hebrew_font_path, start_page=main_index_
 index_pdfs.append(main_index_pdf)
 index_page_counts.append(main_index_pages)
 
-# Subfolder indexes
+# --- Extra indexes from עוד.txt files (recursive, robust) ---
+extra_index_infos = []
+for extra_index_file in pdf_folder.rglob(EXTRA_INDEX_FILENAME):
+    folder = extra_index_file.parent
+    print(f"[DEBUG] Found extra index file: {extra_index_file} in folder: {folder}")
+    with extra_index_file.open("r", encoding="utf-8") as f:
+        song_names = [line.strip() for line in f if line.strip()]
+    print(f"[DEBUG] Song names in {extra_index_file}: {song_names}")
+    # Songs listed in the text file
+    matched_pdfs = [pdf_name_to_path[name] for name in song_names if name in pdf_name_to_path]
+    # Songs physically present in the folder
+    folder_pdfs = [p for p in folder.glob("*.pdf")]
+    # Merge and deduplicate
+    all_pdfs = []
+    seen = set()
+    for p in matched_pdfs + folder_pdfs:
+        if p not in seen:
+            all_pdfs.append(p)
+            seen.add(p)
+    # Sort by song title (case-insensitive)
+    all_pdfs = sorted(all_pdfs, key=lambda p: p.stem.lower())
+    print(f"[DEBUG] All PDFs for {folder.name}: {[str(p) for p in all_pdfs]}")
+    if all_pdfs:
+        index_title = f"רגע של אור - {folder.name}"
+        index_pdf_path = output_folder / f"index_{folder.name}_temp.pdf"
+        num_pages = estimate_index_pages(len(all_pdfs))
+        print(f"[DEBUG] Creating index PDF: {index_pdf_path} with {len(all_pdfs)} songs")
+        create_index(all_pdfs, index_pdf_path, hebrew_font_path, start_page=num_pages + 1, pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in all_pdfs], index_title=index_title)
+        index_pdfs.append(index_pdf_path)
+        index_page_counts.append(num_pages)
+        extra_index_infos.append((all_pdfs, index_pdf_path, index_title))
+    else:
+        print(f"[DEBUG] No PDFs for {extra_index_file}, skipping index creation.")
+
+# --- Subfolder indexes ---
 subfolder_infos = []
 if ENABLE_SUBFOLDER_INDEX:
     print("[DEBUG] ENABLE_SUBFOLDER_INDEX is True. Checking subfolders...")
     for subfolder in [f for f in pdf_folder.iterdir() if f.is_dir()]:
+        # Skip subfolder if it has an extra index file
+        extra_index_file = subfolder / EXTRA_INDEX_FILENAME
+        if extra_index_file.exists():
+            print(f"[DEBUG] Skipping subfolder {subfolder} because it has an extra index file: {extra_index_file}")
+            continue
         print(f"[DEBUG] Checking subfolder: {subfolder}")
         subfolder_pdfs = sorted([p for p in subfolder.glob("*.pdf")], key=lambda p: p.stem.lower())
         if not subfolder_pdfs:
@@ -163,7 +208,7 @@ create_index(
     pdf_files,
     main_index_pdf,
     hebrew_font_path,
-    start_page=None,
+    start_page=1,  # Fixed: pass a valid int
     pdf_page_counts=pdf_page_counts,
     song_start_pages=main_index_song_start_pages
 )
@@ -175,10 +220,25 @@ for pdfs, page_counts, index_path, folder_name in subfolder_infos:
         pdfs,
         index_path,
         hebrew_font_path,
-        start_page=None,
+        start_page=1,  # Fixed: pass a valid int
         pdf_page_counts=page_counts,
         index_title=folder_name,
         song_start_pages=subfolder_song_start_pages
+    )
+
+# --- Extra indexes: Regenerate with correct song_start_pages ---
+for all_pdfs, index_pdf_path, index_title in extra_index_infos:
+    # Sort again to ensure order is correct after any changes
+    all_pdfs_sorted = sorted(all_pdfs, key=lambda p: p.stem.lower())
+    extra_song_start_pages = [pdf_start_page_map[p] for p in all_pdfs_sorted]
+    create_index(
+        all_pdfs_sorted,
+        index_pdf_path,
+        hebrew_font_path,
+        start_page=1,
+        pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in all_pdfs_sorted],
+        index_title=index_title,
+        song_start_pages=extra_song_start_pages
     )
 
 # --- Step 3: Merge all indexes + all songs ---
