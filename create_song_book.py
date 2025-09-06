@@ -122,24 +122,29 @@ for extra_index_file in pdf_folder.rglob(EXTRA_INDEX_FILENAME):
     with extra_index_file.open("r", encoding="utf-8") as f:
         song_names = [line.strip() for line in f if line.strip()]
     print(f"[DEBUG] Song names in {extra_index_file}: {song_names}")
-    matched_pdfs = []
-    for name in song_names:
-        if name in pdf_name_to_path:
-            matched_pdfs.append(pdf_name_to_path[name])
-        else:
-            print(f"Warning: Song '{name}' listed in {extra_index_file} not found among PDFs.")
-    print(f"[DEBUG] Matched PDFs for {folder.name}: {[str(p) for p in matched_pdfs]}")
-    if matched_pdfs:
+    # Songs listed in the text file
+    matched_pdfs = [pdf_name_to_path[name] for name in song_names if name in pdf_name_to_path]
+    # Songs physically present in the folder
+    folder_pdfs = [p for p in folder.glob("*.pdf")]
+    # Merge and deduplicate
+    all_pdfs = []
+    seen = set()
+    for p in matched_pdfs + folder_pdfs:
+        if p not in seen:
+            all_pdfs.append(p)
+            seen.add(p)
+    print(f"[DEBUG] All PDFs for {folder.name}: {[str(p) for p in all_pdfs]}")
+    if all_pdfs:
         index_title = f"רגע של אור - {folder.name}"
         index_pdf_path = output_folder / f"index_{folder.name}_temp.pdf"
-        num_pages = estimate_index_pages(len(matched_pdfs))
-        print(f"[DEBUG] Creating index PDF: {index_pdf_path} with {len(matched_pdfs)} songs")
-        create_index(matched_pdfs, index_pdf_path, hebrew_font_path, start_page=num_pages + 1, pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in matched_pdfs], index_title=index_title)
+        num_pages = estimate_index_pages(len(all_pdfs))
+        print(f"[DEBUG] Creating index PDF: {index_pdf_path} with {len(all_pdfs)} songs")
+        create_index(all_pdfs, index_pdf_path, hebrew_font_path, start_page=num_pages + 1, pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in all_pdfs], index_title=index_title)
         index_pdfs.append(index_pdf_path)
         index_page_counts.append(num_pages)
-        extra_index_infos.append((matched_pdfs, index_pdf_path, index_title))
+        extra_index_infos.append((all_pdfs, index_pdf_path, index_title))
     else:
-        print(f"[DEBUG] No matched PDFs for {extra_index_file}, skipping index creation.")
+        print(f"[DEBUG] No PDFs for {extra_index_file}, skipping index creation.")
 
 # --- Subfolder indexes ---
 subfolder_infos = []
@@ -220,14 +225,14 @@ for pdfs, page_counts, index_path, folder_name in subfolder_infos:
     )
 
 # --- Extra indexes: Regenerate with correct song_start_pages ---
-for matched_pdfs, index_pdf_path, index_title in extra_index_infos:
-    extra_song_start_pages = [pdf_start_page_map[p] for p in matched_pdfs]
+for all_pdfs, index_pdf_path, index_title in extra_index_infos:
+    extra_song_start_pages = [pdf_start_page_map[p] for p in all_pdfs]
     create_index(
-        matched_pdfs,
+        all_pdfs,
         index_pdf_path,
         hebrew_font_path,
         start_page=1,
-        pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in matched_pdfs],
+        pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in all_pdfs],
         index_title=index_title,
         song_start_pages=extra_song_start_pages
     )
