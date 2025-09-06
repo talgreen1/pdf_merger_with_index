@@ -133,6 +133,8 @@ for extra_index_file in pdf_folder.rglob(EXTRA_INDEX_FILENAME):
         if p not in seen:
             all_pdfs.append(p)
             seen.add(p)
+    # Sort by song title (case-insensitive)
+    all_pdfs = sorted(all_pdfs, key=lambda p: p.stem.lower())
     print(f"[DEBUG] All PDFs for {folder.name}: {[str(p) for p in all_pdfs]}")
     if all_pdfs:
         index_title = f"רגע של אור - {folder.name}"
@@ -226,13 +228,15 @@ for pdfs, page_counts, index_path, folder_name in subfolder_infos:
 
 # --- Extra indexes: Regenerate with correct song_start_pages ---
 for all_pdfs, index_pdf_path, index_title in extra_index_infos:
-    extra_song_start_pages = [pdf_start_page_map[p] for p in all_pdfs]
+    # Sort again to ensure order is correct after any changes
+    all_pdfs_sorted = sorted(all_pdfs, key=lambda p: p.stem.lower())
+    extra_song_start_pages = [pdf_start_page_map[p] for p in all_pdfs_sorted]
     create_index(
-        all_pdfs,
+        all_pdfs_sorted,
         index_pdf_path,
         hebrew_font_path,
         start_page=1,
-        pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in all_pdfs],
+        pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in all_pdfs_sorted],
         index_title=index_title,
         song_start_pages=extra_song_start_pages
     )
