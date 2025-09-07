@@ -81,7 +81,9 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         right_margin = width - 2 * cm
         left_margin = 2 * cm
         c.drawRightString(right_margin, y, title_str)
+        # Draw page number
         c.drawString(left_margin, y, page_str)
+        # (Clickable link will be added in post-processing with pypdf)
         dots_start_pos = left_margin + page_width + 0.3 * cm
         dots_end_pos = right_margin - title_width - 0.3 * cm
         num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "HebrewFont", INDEX_SONG_FONT_SIZE))
@@ -288,6 +290,80 @@ def add_page_numbers(input_path, output_path, num_index_pages):
         writer.write(f)
 
 add_page_numbers(temp_merged_path, output_pdf, sum(index_page_counts))
+
+# --- Step 5: Add clickable links to all index page numbers using pypdf ---
+from pypdf.generic import DictionaryObject, NameObject, ArrayObject, NumberObject
+
+def add_link_annotation(page, rect, target_page_num):
+    annotation = DictionaryObject()
+    annotation.update({
+        NameObject("/Subtype"): NameObject("/Link"),
+        NameObject("/Type"): NameObject("/Annot"),
+        NameObject("/Rect"): ArrayObject([NumberObject(rect[0]), NumberObject(rect[1]), NumberObject(rect[2]), NumberObject(rect[3])]),
+        NameObject("/Border"): ArrayObject([NumberObject(0), NumberObject(0), NumberObject(0)]),
+        NameObject("/Dest"): ArrayObject([NumberObject(target_page_num), NameObject("/Fit")])
+    })
+    if "/Annots" in page:
+        page["/Annots"].append(annotation)
+    else:
+        page[NameObject("/Annots")] = ArrayObject([annotation])
+
+def add_all_index_links_with_pypdf(pdf_path, index_pdfs, index_page_counts, index_infos, pdf_start_page_map):
+    from pypdf import PdfReader, PdfWriter
+    reader = PdfReader(str(pdf_path))
+    writer = PdfWriter()
+
+    total_index_pages = sum(index_page_counts)
+    # Add bookmarks for each song start page
+    for pdf, start_page in pdf_start_page_map.items():
+        writer.add_outline_item(pdf.stem, start_page + total_index_pages - 1)  # 0-based
+
+    # For each index (main, subfolder, extra)
+    page_offset = 0
+    for idx, (pdfs, page_counts, index_path, index_title) in enumerate(index_infos):
+        songs_per_page = int((A4[1] - 5.5 * cm) // INDEX_LINE_SPACING)
+        y_start = A4[1] - 3.5 * cm - 1.2 * cm
+        song_idx = 0
+        for page_num in range(index_page_counts[idx]):
+            page = reader.pages[page_offset + page_num]
+            y = y_start
+            for line in range(songs_per_page):
+                if song_idx >= len(pdfs):
+                    break
+                song_pdf = pdfs[song_idx]
+                song_start_page = pdf_start_page_map[song_pdf]
+                target_page = song_start_page + total_index_pages - 1  # 0-based
+                page_str = str(song_start_page)
+                page_width = 20  # fallback width
+                x1 = 2 * cm
+                y1 = y
+                x2 = x1 + page_width
+                y2 = y + INDEX_SONG_FONT_SIZE
+                add_link_annotation(page, (x1, y1, x2, y2), target_page)
+                y -= INDEX_LINE_SPACING
+                song_idx += 1
+            writer.add_page(page)
+        page_offset += index_page_counts[idx]
+    # Add the rest of the pages (songs)
+    for i in range(total_index_pages, len(reader.pages)):
+        writer.add_page(reader.pages[i])
+    # Save output
+    with open(str(pdf_path), "wb") as f:
+        writer.write(f)
+
+# Prepare index_infos: (pdfs, page_counts, index_path, index_title) for all indexes
+index_infos = []
+# Main index
+index_infos.append((pdf_files, pdf_page_counts, main_index_pdf, INDEX_TITLE))
+# Subfolder indexes
+for i, (pdfs, page_counts, index_path, folder_name) in enumerate(subfolder_infos):
+    index_infos.append((pdfs, page_counts, index_path, folder_name))
+# Extra indexes
+for all_pdfs, index_pdf_path, index_title in extra_index_infos:
+    all_pdfs_sorted = sorted(all_pdfs, key=lambda p: p.stem.lower())
+    index_infos.append((all_pdfs_sorted, [PdfReader(str(pdf)).get_num_pages() for pdf in all_pdfs_sorted], index_pdf_path, index_title))
+
+add_all_index_links_with_pypdf(output_pdf, index_pdfs, index_page_counts, index_infos, pdf_start_page_map)
 
 # --- Cleanup ---
 for idx_pdf in index_pdfs:
