@@ -24,7 +24,8 @@ COL_TITLE = "שם השיר"
 COL_PAGE = "עמוד"
 INDEX_TITLE = "רגע של אור - כל השירים"
 PAGE_NUMBER_POSITION = "left"  # Options: "both", "left", "right"
-INDEX_LINE_SPACING = 0.5 * cm  # Space between song lines in the index
+INDEX_LINE_SPACING = 0.8 * cm  # Space between song lines in the index
+INDEX_SONG_FONT_SIZE = 18  # Font size for songs in the index
 
 # --- Feature Flags ---
 ENABLE_SUBFOLDER_INDEX = True  # Set to True to enable subfolder indexes
@@ -60,7 +61,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     c.drawRightString(right_margin, y, col_title)
     c.drawString(left_margin, y, col_page)
     y -= 1.2 * cm
-    c.setFont("HebrewFont", 14)
+    c.setFont("HebrewFont", INDEX_SONG_FONT_SIZE)
 
     songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
     # --- Use song_start_pages if provided, else fallback to old logic ---
@@ -75,21 +76,21 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         song_page = next(song_start_pages_iter)
         page_str = str(song_page)
         title_str = reshape_hebrew(f"{i}. {title}")
-        page_width = c.stringWidth(page_str, "HebrewFont", 14)
-        title_width = c.stringWidth(title_str, "HebrewFont", 14)
+        page_width = c.stringWidth(page_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
+        title_width = c.stringWidth(title_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
         right_margin = width - 2 * cm
         left_margin = 2 * cm
         c.drawRightString(right_margin, y, title_str)
         c.drawString(left_margin, y, page_str)
         dots_start_pos = left_margin + page_width + 0.3 * cm
         dots_end_pos = right_margin - title_width - 0.3 * cm
-        num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "HebrewFont", 14))
+        num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "HebrewFont", INDEX_SONG_FONT_SIZE))
         dots_str = '.' * num_dots
         c.drawString(dots_start_pos, y, dots_str)
         y -= INDEX_LINE_SPACING
         if y < 2 * cm:
             c.showPage()
-            c.setFont("HebrewFont", 14)
+            c.setFont("HebrewFont", INDEX_SONG_FONT_SIZE)
             y = height - 2 * cm
 
     c.save()
@@ -137,7 +138,8 @@ for extra_index_file in pdf_folder.rglob(EXTRA_INDEX_FILENAME):
     all_pdfs = sorted(all_pdfs, key=lambda p: p.stem.lower())
     print(f"[DEBUG] All PDFs for {folder.name}: {[str(p) for p in all_pdfs]}")
     if all_pdfs:
-        index_title = f"רגע של אור - {folder.name}"
+        # index_title = f"רגע של אור - {folder.name}"
+        index_title = folder.name
         index_pdf_path = output_folder / f"index_{folder.name}_temp.pdf"
         num_pages = estimate_index_pages(len(all_pdfs))
         print(f"[DEBUG] Creating index PDF: {index_pdf_path} with {len(all_pdfs)} songs")
