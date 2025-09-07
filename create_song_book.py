@@ -36,6 +36,26 @@ def reshape_hebrew(text):
     bidi_text = get_display(reshaped_text)
     return bidi_text
 
+def extract_artist_from_filename(filename_stem):
+    """
+    Extract artist name from filename following pattern: "Song Name - Artist Name"
+
+    Args:
+        filename_stem (str): The filename without extension
+
+    Returns:
+        tuple: (artist_name, song_name) or (None, filename_stem) if no artist found
+    """
+    if ' - ' in filename_stem:
+        parts = filename_stem.split(' - ', 1)  # Split only on first occurrence
+        if len(parts) == 2:
+            song_name, artist_name = parts
+            # Normalize artist name (remove extra spaces, strip)
+            artist_name = ' '.join(artist_name.strip().split())
+            song_name = ' '.join(song_name.strip().split())
+            return artist_name, song_name
+    return None, filename_stem
+
 # --- Step 1: Collect all PDFs and their page counts ---
 pdf_files = sorted(pdf_folder.rglob("*.pdf"), key=lambda p: p.stem.lower())  # Sort by filename only, case-insensitive
 pdf_page_counts = [PdfReader(str(pdf)).get_num_pages() for pdf in pdf_files]
@@ -103,8 +123,95 @@ def estimate_index_pages(num_songs):
     songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
     return (num_songs + songs_per_page - 1) // songs_per_page
 
+def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_start_page_map=None):
+    """
+    Create an artist-based index PDF with Hebrew support.
+
+    Args:
+        artist_songs (dict): Dictionary mapping artist names to list of (song_name, pdf_path) tuples
+        output_path (Path): Output path for the artist index PDF
+        font_path (Path): Path to Hebrew font file
+        start_page (int): Starting page number for songs
+        pdf_start_page_map (dict): Mapping of PDF paths to their start pages in merged PDF
+    """
+    # Register Hebrew font
+    pdfmetrics.registerFont(TTFont('HebrewFont', str(font_path)))
+
+    # Create canvas
+    c = canvas.Canvas(str(output_path), pagesize=A4)
+    width, height = A4
+
+    # Title
+    title = reshape_hebrew("אומנים")
+    c.setFont('HebrewFont', 16)
+    title_width = c.stringWidth(title, 'HebrewFont', 16)
+    c.drawString((width - title_width) / 2, height - 2 * cm, title)
+
+    # Column headers
+    c.setFont('HebrewFont', 12)
+    col_title = reshape_hebrew(COL_TITLE)  # "שם השיר"
+    col_page = reshape_hebrew(COL_PAGE)    # "עמוד"
+
+    header_y = height - 3 * cm
+    c.drawString(2 * cm, header_y, col_title)
+    c.drawString(width - 3 * cm, header_y, col_page)
+
+    # Draw header line
+    c.line(2 * cm, header_y - 0.3 * cm, width - 2 * cm, header_y - 0.3 * cm)
+
+    # Content
+    y_position = header_y - 1 * cm
+    c.setFont('HebrewFont', INDEX_SONG_FONT_SIZE)
+
+    # Sort artists alphabetically using Hebrew sorting (case-insensitive)
+    sorted_artists = sorted(artist_songs.keys(), key=lambda x: x.lower())
+
+    for artist_name in sorted_artists:
+        songs = artist_songs[artist_name]
+        # Sort songs by song name within each artist
+        songs.sort(key=lambda x: x[0].lower())
+
+        for song_name, pdf_path in songs:
+            # Format: "Artist Name - Song Name"
+            display_text = f"{artist_name} - {song_name}"
+            display_text = reshape_hebrew(display_text)
+
+            # Get page number
+            if pdf_start_page_map and pdf_path in pdf_start_page_map:
+                page_num = pdf_start_page_map[pdf_path]
+            else:
+                page_num = start_page  # Fallback
+
+            # Check if we need a new page
+            if y_position < 3 * cm:
+                c.showPage()
+                c.setFont('HebrewFont', INDEX_SONG_FONT_SIZE)
+                y_position = height - 2 * cm
+
+            # Draw song entry
+            c.drawString(2 * cm, y_position, display_text)
+            c.drawString(width - 3 * cm, y_position, str(page_num))
+
+            y_position -= INDEX_LINE_SPACING
+
+    c.save()
+
 # --- New: Map file name to full path for fast lookup ---
 pdf_name_to_path = {p.name: p for p in pdf_files}
+
+# --- Artist Index Data Collection ---
+artist_songs = {}  # Dictionary: artist_name -> [(song_name, pdf_path)]
+songs_with_artists = set()  # Track which songs have artists to avoid duplicates
+
+for pdf_path in pdf_files:
+    artist_name, song_name = extract_artist_from_filename(pdf_path.stem)
+    if artist_name:
+        if artist_name not in artist_songs:
+            artist_songs[artist_name] = []
+        artist_songs[artist_name].append((song_name, pdf_path))
+        songs_with_artists.add(pdf_path)
+
+print(f"[DEBUG] Found {len(artist_songs)} artists with {sum(len(songs) for songs in artist_songs.values())} songs")
 
 # --- New: Collect all indexes (main + subfolders + extra indexes) ---
 index_pdfs = []
@@ -181,6 +288,16 @@ for pdfs, page_counts, index_path, folder_name in subfolder_infos:
     index_pdfs.append(index_path)
     index_page_counts.append(num_pages)
 
+# Add artist index as the last index (if there are songs with artists)
+artist_index_pdf = None
+if artist_songs:
+    total_artist_songs = sum(len(songs) for songs in artist_songs.values())
+    artist_index_pages = estimate_index_pages(total_artist_songs)
+    artist_index_pdf = output_folder / "index_artists_temp.pdf"
+    index_pdfs.append(artist_index_pdf)
+    index_page_counts.append(artist_index_pages)
+    print(f"[DEBUG] Added artist index with {total_artist_songs} songs, estimated {artist_index_pages} pages")
+
 # Regenerate all indexes with correct start_page
 main_index_pages = index_page_counts[0]
 create_index(pdf_files, main_index_pdf, hebrew_font_path, start_page=main_index_pages + 1, pdf_page_counts=pdf_page_counts)
@@ -244,6 +361,17 @@ for all_pdfs, index_pdf_path, index_title in extra_index_infos:
         index_title=index_title,
         song_start_pages=extra_song_start_pages
     )
+
+    # --- Artist index: Create with correct page numbers ---
+    if artist_songs and artist_index_pdf:
+        print("[DEBUG] Creating artist index with correct page numbers")
+        create_artist_index(
+            artist_songs,
+            artist_index_pdf,
+            hebrew_font_path,
+            start_page=1,
+            pdf_start_page_map=pdf_start_page_map
+        )
 
 # --- Step 3: Merge all indexes + all songs ---
 merger = PdfMerger()
@@ -362,6 +490,23 @@ for i, (pdfs, page_counts, index_path, folder_name) in enumerate(subfolder_infos
 for all_pdfs, index_pdf_path, index_title in extra_index_infos:
     all_pdfs_sorted = sorted(all_pdfs, key=lambda p: p.stem.lower())
     index_infos.append((all_pdfs_sorted, [PdfReader(str(pdf)).get_num_pages() for pdf in all_pdfs_sorted], index_pdf_path, index_title))
+
+# Artist index
+if artist_songs and artist_index_pdf:
+    # Create ordered list of PDFs as they appear in the artist index
+    artist_ordered_pdfs = []
+    artist_ordered_page_counts = []
+    # Sort artists alphabetically (same as in create_artist_index)
+    sorted_artists = sorted(artist_songs.keys(), key=lambda x: x.lower())
+    for artist_name in sorted_artists:
+        songs = artist_songs[artist_name]
+        # Sort songs by song name within each artist (same as in create_artist_index)
+        songs.sort(key=lambda x: x[0].lower())
+        for song_name, pdf_path in songs:
+            artist_ordered_pdfs.append(pdf_path)
+            artist_ordered_page_counts.append(PdfReader(str(pdf_path)).get_num_pages())
+
+    index_infos.append((artist_ordered_pdfs, artist_ordered_page_counts, artist_index_pdf, "אומנים"))
 
 add_all_index_links_with_pypdf(output_pdf, index_pdfs, index_page_counts, index_infos, pdf_start_page_map)
 
