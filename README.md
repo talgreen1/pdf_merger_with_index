@@ -1,56 +1,136 @@
-# Songbook PDF Merger with Index
+# Songbook PDF Merger with Hebrew Index
 
-This script combines multiple PDF files from one or more folders into a single songbook PDF, complete with an index of all songs and page numbers. If your songs are organized in several folders, the script will also generate a separate index for each folder.
+This Python script automates the creation of a songbook PDF with Hebrew support, combining multiple PDF files into a single document with comprehensive indexing and page numbering.
 
 ## Features
-- **Automatic PDF Merging:** Combines all PDFs from specified folders into a single PDF.
-- **Alphabetical Sorting:** Songs are sorted alphabetically by filename.
-- **Comprehensive Index:** Generates an index with song titles and their corresponding page numbers.
-- **Per-Folder Indexes:** If multiple folders are provided, an additional index is created for each folder.
-- **Page Numbering:** Adds page numbers to the final PDF.
+
+- **Automatic PDF Merging:** Combines all PDFs from a specified directory (including subdirectories) into a single PDF
+- **Hebrew Support:** Full Hebrew text support with proper right-to-left rendering using custom Hebrew font
+- **Multiple Index Types:**
+  - Main comprehensive index of all songs
+  - Custom indexes based on `more.txt` files in subdirectories
+  - Optional subfolder-specific indexes
+- **Alphabetical Sorting:** Songs are sorted alphabetically by filename (case-insensitive)
+- **Clickable Links:** Index entries are clickable and link directly to the corresponding song pages
+- **Page Numbering:** Adds page numbers to all song pages
+- **Smart Page Calculation:** Automatically estimates and adjusts for index page counts
 
 ## Requirements
+
 - Python 3.7+
-- All dependencies listed in `requirements.txt` (install with `pip install -r requirements.txt`)
+- Required packages (install with `pip install -r requirements.txt`):
+  - `pypdf` - PDF manipulation
+  - `reportlab` - PDF generation
+  - `arabic-reshaper` - Hebrew text reshaping
+  - `python-bidi` - Bidirectional text support
+- `david.ttf` - Hebrew font file (must be in the project directory)
+
+## Configuration
+
+Before running the script, you need to modify the configuration variables at the top of `create_song_book.py`:
+
+```python
+# --- Config ---
+pdf_folder = Path("c:/temp/songs/pdfs/")  # Folder for input PDF files
+output_folder = Path("c:/temp/songs/Res/")  # Folder for final output PDF
+output_pdf = output_folder / "רגע של אור - שירים.pdf"  # Output filename
+```
+
+### Customizable Settings
+
+- **EXTRA_INDEX_FILENAME**: Name of files containing custom song lists (default: `"more.txt"`)
+- **INDEX_TITLE**: Main index title in Hebrew (default: `"רגע של אור - כל השירים"`)
+- **PAGE_NUMBER_POSITION**: Where to place page numbers (`"left"`, `"right"`, or `"both"`)
+- **INDEX_LINE_SPACING**: Spacing between songs in index (default: `0.8 * cm`)
+- **INDEX_SONG_FONT_SIZE**: Font size for song names in index (default: `18`)
+- **ENABLE_SUBFOLDER_INDEX**: Enable/disable automatic subfolder indexes (default: `True`)
 
 ## Usage
 
-1. **Prepare your PDFs:**
-   - Place your song PDFs in one or more folders. Each PDF should be named after the song title for best results.
+1. **Prepare your environment:**
+   - Ensure `david.ttf` Hebrew font file is in the project directory
+   - Install dependencies: `pip install -r requirements.txt`
 
-2. **Run the script:**
-   - Open a terminal in the project directory.
-   - Run the script with the folders you want to merge. For example:
-     ```sh
-     python create_song_book.py folder1 folder2 folder3
-     ```
-   - You can specify as many folders as you like. The script will process all PDFs in the given folders.
+2. **Organize your PDFs:**
+   - Place your song PDFs in the configured input directory
+   - Name each PDF file after the song title for best results
+   - Optionally organize songs into subdirectories
 
-3. **Output:**
-   - The script will generate a merged PDF (e.g., `songbook_with_index.pdf`) in the current directory.
-   - The output PDF will include:
-     - An index of all songs (with page numbers)
-     - Per-folder indexes (if multiple folders are used)
-     - All songs, merged and sorted alphabetically
-     - Page numbers on each page
+3. **Create custom indexes (optional):**
+   - Create `more.txt` files in subdirectories to define custom song orders
+   - List one song filename per line in the desired order
 
-## Notes
-- The script uses a custom font (`david.ttf`) for Hebrew support. Ensure this file is present in the project directory.
-- Temporary files are cleaned up automatically after the script runs.
+4. **Configure the script:**
+   - Edit the paths in `create_song_book.py` to match your directory structure
+   - Adjust other settings as needed
 
-## Example
-```sh
-python create_song_book.py my_songs hebrew_songs
+5. **Run the script:**
+   ```bash
+   python create_song_book.py
+   ```
+
+## Output Structure
+
+The script generates a single PDF with the following structure:
+
+1. **Main Index** - Comprehensive list of all songs with page numbers
+2. **Custom Indexes** - Additional indexes based on `more.txt` files (if present)
+3. **Subfolder Indexes** - Separate indexes for each subdirectory (if enabled)
+4. **Song Pages** - All PDF files merged in alphabetical order with page numbers
+
+## Custom Index Files
+
+You can create `more.txt` files in subdirectories to define custom song collections:
+
 ```
-This will merge all PDFs from `my_songs` and `hebrew_songs`, create a global index, and a separate index for each folder.
+# Example more.txt content
+song1.pdf
+favorite_song.pdf
+another_song.pdf
+```
+
+The script will create a separate index for these songs while still including them in the main index.
+
+## Hebrew Text Support
+
+The script includes comprehensive Hebrew support:
+- Right-to-left text rendering
+- Proper Hebrew character shaping
+- Bidirectional text algorithm support
+- Custom Hebrew font integration
+
+## File Structure Example
+
+```
+project/
+├── create_song_book.py
+├── david.ttf
+├── requirements.txt
+└── songs/
+    ├── song1.pdf
+    ├── song2.pdf
+    └── category1/
+        ├── more.txt
+        ├── song3.pdf
+        └── song4.pdf
+```
 
 ## Troubleshooting
-- If you encounter missing dependencies, install them with:
-  ```sh
-  pip install -r requirements.txt
-  ```
-- Ensure all PDF files are not password-protected and are readable.
+
+- **Missing dependencies:** Run `pip install -r requirements.txt`
+- **Font issues:** Ensure `david.ttf` is in the project directory
+- **Path errors:** Check that input and output directories exist and are accessible
+- **PDF errors:** Ensure all PDF files are not password-protected and readable
+- **Hebrew display issues:** Verify the Hebrew font file is properly installed
+
+## Technical Details
+
+- Uses `pypdf` for PDF manipulation and merging
+- Uses `reportlab` for generating index pages
+- Implements proper Hebrew text handling with `arabic-reshaper` and `python-bidi`
+- Automatically calculates page offsets for accurate index page numbers
+- Creates clickable links between index entries and song pages
 
 ## License
-This project is provided as-is for personal use.
 
+This project is provided as-is for personal use.
