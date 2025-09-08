@@ -8,12 +8,14 @@ This Python script automates the creation of a songbook PDF with Hebrew support,
 - **Hebrew Support:** Full Hebrew text support with proper right-to-left rendering using custom Hebrew font
 - **Multiple Index Types:**
   - Main comprehensive index of all songs
+  - **Artist index ("אומנים"):** Songs organized by artist name with format "Artist Name - Song Name"
   - Custom indexes based on `more.txt` files in subdirectories
   - Optional subfolder-specific indexes
 - **Alphabetical Sorting:** Songs are sorted alphabetically by filename (case-insensitive)
 - **Clickable Links:** Index entries are clickable and link directly to the corresponding song pages
 - **Page Numbering:** Adds page numbers to all song pages
 - **Smart Page Calculation:** Automatically estimates and adjusts for index page counts
+- **Artist Name Extraction:** Automatically extracts artist information from filenames following the pattern "Song Name - Artist Name.pdf"
 
 ## Requirements
 
@@ -130,6 +132,28 @@ project/
 - Implements proper Hebrew text handling with `arabic-reshaper` and `python-bidi`
 - Automatically calculates page offsets for accurate index page numbers
 - Creates clickable links between index entries and song pages
+
+## Filename Conventions
+
+For optimal use of the artist index feature, follow these filename conventions:
+
+### Artist-Song Pattern
+Name your PDF files using the pattern: `"Song Name - Artist Name.pdf"`
+
+**Examples:**
+- `שיר יפה - דוד ברוזה.pdf` → Will appear in artist index as "דוד ברוזה - שיר יפה"
+- `מלודיה - יהודית רביץ.pdf` → Will appear in artist index as "יהודית רביץ - מלודיה"
+- `בלדה רומנטית - להקת הזמר.pdf` → Will appear in artist index as "להקת הזמר - בלדה רומנטית"
+
+### Songs Without Artists
+Files that don't follow the artist pattern will still be included in the main index and will appear in a separate "שירים ללא אומן" (Songs Without Artist) section in the artist index:
+- `שיר ללא אומן.pdf` → Appears only in main index and "songs without artist" section
+
+### Best Practices
+- Use consistent spelling for artist names across files
+- Avoid extra spaces around the dash separator
+- Hebrew characters are fully supported in both song and artist names
+- Multiple artists can be included: `שיר - אומן א' ואומן ב'.pdf`
 
 ## License
 

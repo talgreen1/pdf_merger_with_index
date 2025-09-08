@@ -32,6 +32,7 @@ display_text = reshape_hebrew(hebrew_title)
 - `arabic_reshaper.reshape()`: Character shaping
 - `bidi.algorithm.get_display()`: Bidirectional text processing
 
+
 ---
 
 #### `create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_counts=None, index_title=None, song_start_pages=None)`
@@ -80,6 +81,164 @@ create_index(
     song_start_pages=[1, 4]
 )
 ```
+
+---
+
+#### `estimate_index_pages(num_songs: int) -> int`
+
+**Purpose**: Calculates the number of pages required for an index
+
+**Parameters**:
+- `num_songs` (int): Number of songs to include in the index
+
+**Returns**:
+- `int`: Estimated number of pages needed
+
+**Algorithm**:
+```python
+def estimate_index_pages(num_songs):
+    height = A4[1]  # A4 page height in points
+    songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
+    return (num_songs + songs_per_page - 1) // songs_per_page
+```
+
+**Mathematical Formula**:
+- `songs_per_page = ⌊(page_height - margins) / line_spacing⌋`
+- `pages_needed = ⌈num_songs / songs_per_page⌉`
+
+**Constants Used**:
+- `A4[1]`: 841.890 points (A4 height)
+- `INDEX_LINE_SPACING`: 0.8 cm (configurable)
+- Margin allowance: 5.5 cm total
+
+**Usage Example**:
+```python
+pages_needed = estimate_index_pages(50)  # Returns estimated pages for 50 songs
+```
+
+---
+
+#### `extract_artist_from_filename(filename_stem: str) -> Tuple[Optional[str], str]`
+
+**Purpose**: Extracts artist name from filename following the pattern "Song Name - Artist Name"
+
+**Parameters**:
+- `filename_stem` (str): The filename without extension
+
+**Returns**:
+- `Tuple[Optional[str], str]`: (artist_name, song_name) or (None, filename_stem) if no artist found
+
+**Algorithm**:
+1. Check if filename contains " - " separator
+2. Split on first occurrence of " - "
+3. If exactly 2 parts found: return (artist_name, song_name)
+4. Otherwise: return (None, original_filename)
+
+**Implementation Details**:
+```python
+def extract_artist_from_filename(filename_stem):
+    if ' - ' in filename_stem:
+        parts = filename_stem.split(' - ', 1)  # Split only on first occurrence
+        if len(parts) == 2:
+            song_name, artist_name = parts
+            return artist_name.strip(), song_name.strip()
+    return None, filename_stem
+```
+
+**Edge Cases Handled**:
+- Multiple dashes: Only splits on first occurrence
+- Extra whitespace: Automatically trimmed
+- No artist separator: Returns None for artist
+- Hebrew characters: Fully supported
+
+**Usage Examples**:
+```python
+# With artist
+artist, song = extract_artist_from_filename("שיר יפה - דוד ברוזה")
+# Returns: ("דוד ברוזה", "שיר יפה")
+
+# Without artist
+artist, song = extract_artist_from_filename("שיר ללא אומן")
+# Returns: (None, "שיר ללא אומן")
+
+# Multiple dashes
+artist, song = extract_artist_from_filename("שיר - אומן - פרטים נוספים")
+# Returns: ("אומן - פרטים נוספים", "שיר")
+```
+
+---
+
+#### `create_artist_index(artist_songs, songs_without_artist, output_path, font_path, start_page=1, pdf_start_page_map=None)`
+
+**Purpose**: Creates an artist-based index PDF with Hebrew support, organizing songs by artist name
+
+**Parameters**:
+- `artist_songs` (Dict[str, List[Tuple[str, Path]]]): Dictionary mapping artist names to list of (song_name, pdf_path) tuples
+- `songs_without_artist` (List[Tuple[str, Path]]): List of (song_name, pdf_path) tuples for songs without artists
+- `output_path` (Path): Output path for the artist index PDF
+- `font_path` (Path): Path to Hebrew TTF font file
+- `start_page` (int, optional): Starting page number for songs. Default: 1
+- `pdf_start_page_map` (Dict[Path, int], optional): Mapping of PDF paths to their start pages in merged PDF
+
+**Returns**: None (writes PDF file to disk)
+
+**Algorithm**:
+1. Register Hebrew font with ReportLab
+2. Create canvas with A4 page size
+3. Render Hebrew title "אומנים" (Artists)
+4. Generate column headers in Hebrew
+5. Sort artists alphabetically
+6. For each artist:
+   - Sort songs within artist alphabetically
+   - Render entries in format "Artist Name - Song Name"
+   - Include accurate page numbers
+7. Add "שירים ללא אומן" section for songs without artists
+8. Handle automatic page breaks
+9. Save final PDF
+
+**Display Format**:
+- Title: "אומנים" (Artists)
+- Entry format: "Artist Name - Song Name"
+- Sorting: Alphabetical by artist name, then by song name
+- Special section: "שירים ללא אומן" for songs without artist information
+
+**Page Layout**:
+- A4 page size (595.276 × 841.890 points)
+- Title: 16pt Hebrew font, centered
+- Headers: 12pt Hebrew font
+- Content: Configurable font size (INDEX_SONG_FONT_SIZE)
+- Line spacing: Configurable (INDEX_LINE_SPACING)
+- Margins: 2 cm from edges
+
+**Usage Example**:
+```python
+artist_songs = {
+    "דוד ברוזה": [("שיר יפה", Path("שיר יפה - דוד ברוזה.pdf"))],
+    "יהודית רביץ": [("מלודיה", Path("מלודיה - יהודית רביץ.pdf"))]
+}
+songs_without_artist = [("שיר ללא אומן", Path("שיר ללא אומן.pdf"))]
+
+create_artist_index(
+    artist_songs=artist_songs,
+    songs_without_artist=songs_without_artist,
+    output_path=Path("artist_index.pdf"),
+    font_path=Path("david.ttf"),
+    start_page=10,
+    pdf_start_page_map={Path("שיר יפה - דוד ברוזה.pdf"): 10}
+)
+```
+
+**Error Handling**:
+- Font registration failures
+- Invalid path parameters
+- PDF generation errors
+- Missing page mapping data (uses fallback start_page)
+
+**Dependencies**:
+- `reportlab.pdfgen.canvas`: PDF generation
+- `reportlab.pdfbase.pdfmetrics`: Font registration
+- `reportlab.pdfbase.ttfonts.TTFont`: Hebrew font support
+- `reshape_hebrew()`: Hebrew text processing
 
 ---
 

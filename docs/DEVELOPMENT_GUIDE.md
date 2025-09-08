@@ -140,6 +140,11 @@ class SubfolderIndexStrategy(IndexStrategy):
     def create_index(self, songs, output_path):
         # Subfolder index implementation
         pass
+
+class ArtistIndexStrategy(IndexStrategy):
+    def create_index(self, artist_songs, songs_without_artist, output_path):
+        # Artist index implementation
+        pass
 ```
 
 #### 3. Factory Pattern for PDF Operations
@@ -307,6 +312,293 @@ python -m pytest --cov=songbook tests/
 # Run performance tests
 python -m pytest tests/test_performance.py -v
 ```
+
+## Artist Index Feature Development
+
+### Overview
+
+The artist index feature adds a new index type that organizes songs by artist name, displaying them in the format "Artist Name - Song Name". This section covers development considerations, testing strategies, and implementation details.
+
+### Development Considerations
+
+#### 1. Filename Pattern Recognition
+
+**Pattern**: `"Song Name - Artist Name.pdf"`
+
+**Implementation Strategy**:
+```python
+def extract_artist_from_filename(filename_stem: str) -> Tuple[Optional[str], str]:
+    """
+    Extract artist name from filename following pattern: "Song Name - Artist Name"
+
+    Edge cases to handle:
+    - Multiple dashes: Split only on first occurrence
+    - Extra whitespace: Strip automatically
+    - Hebrew characters: Full Unicode support
+    - No artist separator: Return None gracefully
+    """
+    if ' - ' in filename_stem:
+        parts = filename_stem.split(' - ', 1)  # Split only on first occurrence
+        if len(parts) == 2:
+            song_name, artist_name = parts
+            return artist_name.strip(), song_name.strip()
+    return None, filename_stem
+```
+
+**Testing Considerations**:
+- Test with various Hebrew character combinations
+- Test with multiple dashes in filename
+- Test with extra whitespace
+- Test with empty strings and edge cases
+- Test with mixed Hebrew/Latin characters
+
+#### 2. Data Structure Design
+
+**Artist Data Collection**:
+```python
+# Primary data structures
+artist_songs: Dict[str, List[Tuple[str, Path]]] = {}
+songs_without_artist: List[Tuple[str, Path]] = []
+
+# Performance considerations:
+# - O(1) artist lookup
+# - O(n) space complexity
+# - Minimal memory overhead
+```
+
+**Memory Management**:
+- Use generators for large file collections
+- Implement lazy loading for PDF metadata
+- Clean up temporary data structures after use
+
+#### 3. Hebrew Text Processing
+
+**Sorting Considerations**:
+```python
+# Hebrew alphabetical sorting
+sorted_artists = sorted(artist_songs.keys(), key=lambda x: x.lower())
+
+# Considerations:
+# - Hebrew collation rules
+# - Mixed Hebrew/Latin text
+# - Diacritics and special characters
+# - Case sensitivity in Hebrew context
+```
+
+**RTL Text Rendering**:
+- Ensure proper bidirectional text handling
+- Test with mixed RTL/LTR content
+- Verify font rendering consistency
+
+#### 4. Integration Points
+
+**Main Workflow Integration**:
+```python
+# Integration locations in create_song_book.py:
+# 1. After PDF collection (around line 107)
+# 2. In index creation section (around line 110-118)
+# 3. In page calculation section (around line 175-183)
+# 4. In index regeneration section (around line 184-198)
+```
+
+**Error Handling Strategy**:
+- Graceful degradation when artist extraction fails
+- Fallback to main index if artist index creation fails
+- Proper error logging and user feedback
+- Configuration option to disable feature
+
+### Testing Strategy
+
+#### 1. Unit Tests
+
+**Artist Name Extraction Tests**:
+```python
+def test_extract_artist_from_filename():
+    # Test cases
+    test_cases = [
+        ("שיר יפה - דוד ברוזה", ("דוד ברוזה", "שיר יפה")),
+        ("מלודיה - יהודית רביץ", ("יהודית רביץ", "מלודיה")),
+        ("שיר ללא אומן", (None, "שיר ללא אומן")),
+        ("שיר - אומן - פרטים", ("אומן - פרטים", "שיר")),
+        ("", (None, "")),
+        ("   שיר   -   אומן   ", ("אומן", "שיר")),  # Whitespace handling
+    ]
+
+    for filename, expected in test_cases:
+        result = extract_artist_from_filename(filename)
+        assert result == expected
+```
+
+**Artist Index Creation Tests**:
+```python
+def test_create_artist_index():
+    # Test data setup
+    artist_songs = {
+        "דוד ברוזה": [("שיר יפה", Path("test1.pdf"))],
+        "יהודית רביץ": [("מלודיה", Path("test2.pdf"))]
+    }
+    songs_without_artist = [("שיר ללא אומן", Path("test3.pdf"))]
+
+    # Test index creation
+    output_path = Path("test_artist_index.pdf")
+    create_artist_index(
+        artist_songs,
+        songs_without_artist,
+        output_path,
+        Path("david.ttf")
+    )
+
+    # Verify output
+    assert output_path.exists()
+    # Additional PDF content verification
+```
+
+#### 2. Integration Tests
+
+**Full Workflow Test**:
+```python
+def test_full_workflow_with_artist_index():
+    # Setup test PDFs with artist naming pattern
+    test_pdfs = [
+        "שיר א - אומן א.pdf",
+        "שיר ב - אומן ב.pdf",
+        "שיר ללא אומן.pdf"
+    ]
+
+    # Run full songbook generation
+    result = create_songbook(test_pdf_directory)
+
+    # Verify artist index exists and is correct
+    assert "index_artists_temp.pdf" in result.temp_files
+    # Verify final PDF structure
+```
+
+#### 3. Performance Tests
+
+**Large Dataset Test**:
+```python
+def test_artist_index_performance():
+    # Generate large test dataset
+    num_files = 1000
+    test_files = generate_test_pdfs(num_files)
+
+    # Measure performance
+    start_time = time.time()
+    result = process_artist_index(test_files)
+    end_time = time.time()
+
+    # Performance assertions
+    assert end_time - start_time < 10.0  # Should complete within 10 seconds
+    assert len(result.artist_songs) > 0
+```
+
+### Configuration Options
+
+**Feature Configuration**:
+```python
+# Artist index configuration constants
+ENABLE_ARTIST_INDEX = True  # Enable/disable artist index creation
+ARTIST_INDEX_TITLE = "אומנים"  # Title for artist index
+INCLUDE_SONGS_WITHOUT_ARTIST = True  # Include section for songs without artists
+ARTIST_SORTING_LOCALE = "he_IL"  # Hebrew locale for sorting
+```
+
+**Development Configuration**:
+```python
+# Development-specific settings
+DEBUG_ARTIST_EXTRACTION = False  # Enable debug logging for artist extraction
+ARTIST_INDEX_VALIDATION = True  # Enable additional validation checks
+PERFORMANCE_PROFILING = False  # Enable performance profiling
+```
+
+### Debugging and Troubleshooting
+
+#### 1. Common Issues
+
+**Artist Extraction Problems**:
+- Inconsistent filename patterns
+- Unicode encoding issues
+- Extra whitespace in filenames
+- Multiple dash separators
+
+**Hebrew Text Issues**:
+- Font registration failures
+- RTL text rendering problems
+- Character encoding issues
+- Mixed language text handling
+
+#### 2. Debugging Tools
+
+**Logging Configuration**:
+```python
+import logging
+
+# Configure logging for artist index debugging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+logger = logging.getLogger('artist_index')
+
+def extract_artist_from_filename(filename_stem: str) -> Tuple[Optional[str], str]:
+    logger.debug(f"Processing filename: {filename_stem}")
+    # ... implementation
+    logger.debug(f"Extracted artist: {artist_name}, song: {song_name}")
+    return artist_name, song_name
+```
+
+**Validation Functions**:
+```python
+def validate_artist_data(artist_songs: Dict[str, List[Tuple[str, Path]]]) -> bool:
+    """Validate artist data structure integrity"""
+    for artist, songs in artist_songs.items():
+        if not isinstance(artist, str) or not artist.strip():
+            logger.error(f"Invalid artist name: {artist}")
+            return False
+
+        for song_name, pdf_path in songs:
+            if not isinstance(song_name, str) or not song_name.strip():
+                logger.error(f"Invalid song name: {song_name}")
+                return False
+
+            if not pdf_path.exists():
+                logger.error(f"PDF file not found: {pdf_path}")
+                return False
+
+    return True
+```
+
+### Future Enhancements
+
+#### 1. Advanced Features
+
+**Multi-Artist Support**:
+- Handle songs with multiple artists
+- Support for featured artists
+- Artist collaboration detection
+
+**Artist Metadata**:
+- Extract additional metadata from filenames
+- Support for genre classification
+- Album/collection grouping
+
+**Internationalization**:
+- Support for multiple languages
+- Configurable sorting rules
+- Locale-specific formatting
+
+#### 2. Performance Optimizations
+
+**Caching Strategy**:
+- Cache artist extraction results
+- Implement incremental updates
+- Optimize for large collections
+
+**Parallel Processing**:
+- Parallelize artist extraction
+- Concurrent index generation
+- Asynchronous PDF processing
 
 ## Code Quality Standards
 
