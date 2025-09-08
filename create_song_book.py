@@ -369,16 +369,16 @@ for all_pdfs, index_pdf_path, index_title in extra_index_infos:
         song_start_pages=extra_song_start_pages
     )
 
-    # --- Artist index: Create with correct page numbers ---
-    if artist_songs and artist_index_pdf:
-        print("[DEBUG] Creating artist index with correct page numbers")
-        create_artist_index(
-            artist_songs,
-            artist_index_pdf,
-            hebrew_font_path,
-            start_page=1,
-            pdf_start_page_map=pdf_start_page_map
-        )
+# --- Artist index: Create with correct page numbers BEFORE merging ---
+if artist_songs and artist_index_pdf:
+    print("[DEBUG] Creating artist index with correct page numbers")
+    create_artist_index(
+        artist_songs,
+        artist_index_pdf,
+        hebrew_font_path,
+        start_page=1,
+        pdf_start_page_map=pdf_start_page_map
+    )
 
 # --- Step 3: Merge all indexes + all songs ---
 merger = PdfMerger()
@@ -403,6 +403,7 @@ def add_page_numbers(input_path, output_path, num_index_pages):
             # Index pages: copy as-is, no page number
             writer.add_page(page)
             continue
+        
         # Song pages: add page number starting from 1
         packet_path = output_folder / "page_number.pdf"
         packet = canvas.Canvas(str(packet_path), pagesize=A4)
@@ -424,7 +425,17 @@ def add_page_numbers(input_path, output_path, num_index_pages):
     with open(output_path, "wb") as f:
         writer.write(f)
 
-add_page_numbers(temp_merged_path, output_pdf, sum(index_page_counts))
+# Calculate ACTUAL index page counts from created PDFs
+actual_index_page_counts = []
+for idx_pdf in index_pdfs:
+    if idx_pdf.exists():
+        actual_pages = PdfReader(str(idx_pdf)).get_num_pages()
+        actual_index_page_counts.append(actual_pages)
+    else:
+        actual_index_page_counts.append(0)
+
+
+add_page_numbers(temp_merged_path, output_pdf, sum(actual_index_page_counts))
 
 # --- Step 5: Add clickable links to all index page numbers using pypdf ---
 from pypdf.generic import DictionaryObject, NameObject, ArrayObject, NumberObject

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Read(//c/temp/songs/Res/**)",
+      "Read(//c/temp/songs/pdfs/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
