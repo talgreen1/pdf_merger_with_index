@@ -143,24 +143,19 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
 
     # Title
     title = reshape_hebrew("אומנים")
-    c.setFont('HebrewFont', 16)
-    title_width = c.stringWidth(title, 'HebrewFont', 16)
-    c.drawString((width - title_width) / 2, height - 2 * cm, title)
+    c.setFont('HebrewFont', 20)
+    c.drawRightString(width - 2 * cm, height - 2 * cm, title)
 
-    # Column headers
-    c.setFont('HebrewFont', 12)
+    # Column headers - match regular index format
+    y = height - 3.5 * cm
+    c.setFont('HebrewFont', 16)
     col_title = reshape_hebrew(COL_TITLE)  # "שם השיר"
     col_page = reshape_hebrew(COL_PAGE)    # "עמוד"
-
-    header_y = height - 3 * cm
-    c.drawString(2 * cm, header_y, col_title)
-    c.drawString(width - 3 * cm, header_y, col_page)
-
-    # Draw header line
-    c.line(2 * cm, header_y - 0.3 * cm, width - 2 * cm, header_y - 0.3 * cm)
-
-    # Content
-    y_position = header_y - 1 * cm
+    right_margin = width - 2 * cm
+    left_margin = 2 * cm
+    c.drawRightString(right_margin, y, col_title)
+    c.drawString(left_margin, y, col_page)
+    y -= 1.2 * cm
     c.setFont('HebrewFont', INDEX_SONG_FONT_SIZE)
 
     # Sort artists alphabetically using Hebrew sorting (case-insensitive)
@@ -183,16 +178,28 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
                 page_num = start_page  # Fallback
 
             # Check if we need a new page
-            if y_position < 3 * cm:
+            if y < 3 * cm:
                 c.showPage()
                 c.setFont('HebrewFont', INDEX_SONG_FONT_SIZE)
-                y_position = height - 2 * cm
+                y = height - 2 * cm
 
-            # Draw song entry
-            c.drawString(2 * cm, y_position, display_text)
-            c.drawString(width - 3 * cm, y_position, str(page_num))
+            # Draw song entry with correct positioning and dots (like regular index)
+            page_str = str(page_num)
+            page_width = c.stringWidth(page_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
+            title_width = c.stringWidth(display_text, "HebrewFont", INDEX_SONG_FONT_SIZE)
 
-            y_position -= INDEX_LINE_SPACING
+            # Draw song name on the right, page number on the left (Hebrew RTL layout)
+            c.drawRightString(right_margin, y, display_text)
+            c.drawString(left_margin, y, page_str)
+
+            # Add dots between page number and song name
+            dots_start_pos = left_margin + page_width + 0.3 * cm
+            dots_end_pos = right_margin - title_width - 0.3 * cm
+            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "HebrewFont", INDEX_SONG_FONT_SIZE))
+            dots_str = '.' * num_dots
+            c.drawString(dots_start_pos, y, dots_str)
+
+            y -= INDEX_LINE_SPACING
 
     c.save()
 
