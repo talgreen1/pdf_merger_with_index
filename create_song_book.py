@@ -86,8 +86,40 @@ print(f"[DEBUG] Total PDFs: {len(all_pdf_files)}, Regular PDFs: {len(pdf_files)}
 # --- Step 2: Create index PDF with Hebrew support and page numbers ---
 def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_counts=None, index_title=None, song_start_pages=None):
     pdfmetrics.registerFont(TTFont("HebrewFont", str(font_path)))
+    
+    # Try to register Lucida Sans Unicode for mixed language support
+    try:
+        # Try common paths for Lucida Sans Unicode
+        lucida_paths = [
+            "C:/Windows/Fonts/l_10646.ttf",  # Windows path
+            "/System/Library/Fonts/LucidaGrande.ttc",  # macOS path
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"  # Linux fallback
+        ]
+        
+        lucida_registered = False
+        for path in lucida_paths:
+            try:
+                if Path(path).exists():
+                    pdfmetrics.registerFont(TTFont("LucidaFont", path))
+                    lucida_registered = True
+                    print(f"[DEBUG] Registered Lucida font from: {path}")
+                    break
+            except:
+                continue
+        
+        if not lucida_registered:
+            print("[DEBUG] Could not find Lucida Sans Unicode, will try system fallback")
+            
+    except Exception as e:
+        print(f"[DEBUG] Font registration failed: {e}")
+        lucida_registered = False
+    
     c = canvas.Canvas(str(output_path), pagesize=A4)
     width, height = A4
+    
+    # For separate indexes with mixed languages, try to use a more universal approach
+    is_separate_index = index_title and "(נפרד)" in index_title
+    
     c.setFont("HebrewFont", 20)
     # Use custom index title if provided, else default
     title_to_draw = reshape_hebrew(index_title) if index_title else reshape_hebrew(INDEX_TITLE)
@@ -115,23 +147,65 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         song_start_pages_iter = iter([page_num + sum(pdf_page_counts[:i]) for i in range(len(pdf_paths))])
 
     for i, path in enumerate(pdf_paths, start=1):
-        title = path.stem
+        title = path.stem  # This gives filename without extension - that's what we want
         song_page = next(song_start_pages_iter)
         page_str = str(song_page)
-        title_str = reshape_hebrew(f"{i}. {title}")
-        page_width = c.stringWidth(page_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
-        title_width = c.stringWidth(title_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
-        right_margin = width - 2 * cm
-        left_margin = 2 * cm
-        c.drawRightString(right_margin, y, title_str)
-        # Draw page number
-        c.drawString(left_margin, y, page_str)
+        
+        # For separate indexes, don't add numbering; for regular indexes, add numbering
+        if is_separate_index:
+            # For separate indexes with mixed languages, use Lucida font if available
+            title_str = f"{i}. {title}"  # Don't use reshape_hebrew for mixed text
+            
+            # Try to use Lucida font for better mixed-language support
+            try:
+                if lucida_registered:
+                    c.setFont("LucidaFont", INDEX_SONG_FONT_SIZE)
+                    page_width = c.stringWidth(page_str, "LucidaFont", INDEX_SONG_FONT_SIZE)
+                    title_width = c.stringWidth(title_str, "LucidaFont", INDEX_SONG_FONT_SIZE)
+                    font_used = "LucidaFont"
+                else:
+                    raise Exception("Lucida not available")
+            except:
+                # Fallback to Hebrew font
+                c.setFont("HebrewFont", INDEX_SONG_FONT_SIZE)
+                page_width = c.stringWidth(page_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
+                title_width = c.stringWidth(title_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
+                font_used = "HebrewFont"
+            
+            right_margin = width - 2 * cm
+            left_margin = 2 * cm
+            c.drawRightString(right_margin, y, title_str)
+            c.drawString(left_margin, y, page_str)
+            
+            # Switch back to Hebrew font for consistency
+            c.setFont("HebrewFont", INDEX_SONG_FONT_SIZE)
+        else:
+            # For regular indexes, use numbering with Hebrew reshaping
+            title_str = reshape_hebrew(f"{i}. {title}")
+            page_width = c.stringWidth(page_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
+            title_width = c.stringWidth(title_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
+            right_margin = width - 2 * cm
+            left_margin = 2 * cm
+            c.drawRightString(right_margin, y, title_str)
+            # Draw page number
+            c.drawString(left_margin, y, page_str)
         # (Clickable link will be added in post-processing with pypdf)
         dots_start_pos = left_margin + page_width + 0.3 * cm
         dots_end_pos = right_margin - title_width - 0.3 * cm
-        num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "HebrewFont", INDEX_SONG_FONT_SIZE))
-        dots_str = '.' * num_dots
-        c.drawString(dots_start_pos, y, dots_str)
+        
+        # Use appropriate font for dots calculation
+        if is_separate_index and 'font_used' in locals() and font_used == "LucidaFont":
+            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "LucidaFont", INDEX_SONG_FONT_SIZE))
+            if num_dots > 0:  # Only draw dots if there's space
+                dots_str = '.' * num_dots
+                c.setFont("LucidaFont", INDEX_SONG_FONT_SIZE)
+                c.drawString(dots_start_pos, y, dots_str)
+                c.setFont("HebrewFont", INDEX_SONG_FONT_SIZE)
+        else:
+            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "HebrewFont", INDEX_SONG_FONT_SIZE))
+            if num_dots > 0:  # Only draw dots if there's space
+                dots_str = '.' * num_dots
+                c.drawString(dots_start_pos, y, dots_str)
         y -= INDEX_LINE_SPACING
         if y < 2 * cm:
             c.showPage()
