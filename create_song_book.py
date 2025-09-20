@@ -153,23 +153,47 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         
         # For separate indexes, don't add numbering; for regular indexes, add numbering
         if is_separate_index:
-            # For separate indexes with mixed languages, use Lucida font if available
-            title_str = f"{i}. {title}"  # Don't use reshape_hebrew for mixed text
+            # For separate indexes with mixed languages, use smaller font and process Hebrew parts
+            separate_font_size = int(INDEX_SONG_FONT_SIZE * 0.7)  # Make font 30% smaller
+            
+            # Process the title to reverse only Hebrew parts
+            def fix_hebrew_in_mixed_text(text):
+                import re
+                # Split text by common separators while preserving them
+                parts = re.split('( - | \- )', text)
+                processed_parts = []
+                
+                for part in parts:
+                    if part in [' - ', ' \- ']:
+                        processed_parts.append(part)
+                    else:
+                        # Check if this part contains Hebrew characters
+                        has_hebrew = any('\u0590' <= char <= '\u05FF' for char in part)
+                        if has_hebrew and not any(char.isascii() and char.isalpha() for char in part):
+                            # Pure Hebrew text - apply reshaping
+                            processed_parts.append(reshape_hebrew(part))
+                        else:
+                            # Mixed or non-Hebrew text - keep as is
+                            processed_parts.append(part)
+                
+                return ''.join(processed_parts)
+            
+            title_str = fix_hebrew_in_mixed_text(title)  # Remove the numbering (i.)
             
             # Try to use Lucida font for better mixed-language support
             try:
                 if lucida_registered:
-                    c.setFont("LucidaFont", INDEX_SONG_FONT_SIZE)
-                    page_width = c.stringWidth(page_str, "LucidaFont", INDEX_SONG_FONT_SIZE)
-                    title_width = c.stringWidth(title_str, "LucidaFont", INDEX_SONG_FONT_SIZE)
+                    c.setFont("LucidaFont", separate_font_size)
+                    page_width = c.stringWidth(page_str, "LucidaFont", separate_font_size)
+                    title_width = c.stringWidth(title_str, "LucidaFont", separate_font_size)
                     font_used = "LucidaFont"
                 else:
                     raise Exception("Lucida not available")
             except:
                 # Fallback to Hebrew font
-                c.setFont("HebrewFont", INDEX_SONG_FONT_SIZE)
-                page_width = c.stringWidth(page_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
-                title_width = c.stringWidth(title_str, "HebrewFont", INDEX_SONG_FONT_SIZE)
+                c.setFont("HebrewFont", separate_font_size)
+                page_width = c.stringWidth(page_str, "HebrewFont", separate_font_size)
+                title_width = c.stringWidth(title_str, "HebrewFont", separate_font_size)
                 font_used = "HebrewFont"
             
             right_margin = width - 2 * cm
@@ -195,10 +219,10 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         
         # Use appropriate font for dots calculation
         if is_separate_index and 'font_used' in locals() and font_used == "LucidaFont":
-            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "LucidaFont", INDEX_SONG_FONT_SIZE))
+            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "LucidaFont", separate_font_size))
             if num_dots > 0:  # Only draw dots if there's space
                 dots_str = '.' * num_dots
-                c.setFont("LucidaFont", INDEX_SONG_FONT_SIZE)
+                c.setFont("LucidaFont", separate_font_size)
                 c.drawString(dots_start_pos, y, dots_str)
                 c.setFont("HebrewFont", INDEX_SONG_FONT_SIZE)
         else:
