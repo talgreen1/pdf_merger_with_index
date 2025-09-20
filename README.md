@@ -10,6 +10,7 @@ This Python script automates the creation of a songbook PDF with Hebrew support,
   - Main comprehensive index of all songs
   - **Artist index ("אומנים"):** Songs organized by artist name with format "Artist Name - Song Name"
   - Custom indexes based on `more.txt` files in subdirectories
+  - **Separated indexes:** Independent song collections that appear in their own indexes and are excluded from the main index
   - Optional subfolder-specific indexes
 - **Alphabetical Sorting:** Songs are sorted alphabetically by filename (case-insensitive)
 - **Clickable Links:** Index entries are clickable and link directly to the corresponding song pages
@@ -75,10 +76,13 @@ output_pdf = output_folder / "רגע של אור - שירים.pdf"  # Output fil
 
 The script generates a single PDF with the following structure:
 
-1. **Main Index** - Comprehensive list of all songs with page numbers
-2. **Custom Indexes** - Additional indexes based on `more.txt` files (if present)
-3. **Subfolder Indexes** - Separate indexes for each subdirectory (if enabled)
-4. **Song Pages** - All PDF files merged in alphabetical order with page numbers
+1. **Main Index** - Comprehensive list of all songs with page numbers (excluding separated songs)
+2. **Artist Index** - Songs organized by artist name
+3. **Custom Indexes** - Additional indexes based on `more.txt` files (if present)
+4. **Separated Indexes** - Independent indexes for folders marked with `.separate` files
+5. **Subfolder Indexes** - Separate indexes for each subdirectory (if enabled)
+6. **Song Pages** - All PDF files merged in alphabetical order with page numbers
+7. **Separated Song Pages** - Songs from separated folders, placed after regular songs
 
 ## Custom Index Files
 
@@ -92,6 +96,47 @@ another_song.pdf
 ```
 
 The script will create a separate index for these songs while still including them in the main index.
+
+## Separated Index Feature
+
+The separated index feature allows you to create completely independent song collections that are excluded from the main songbook but have their own dedicated indexes and appear at the end of the PDF.
+
+### How to Create Separated Collections
+
+1. **Create a `.separate` file:** Place an empty file named `.separate` in any subdirectory within your PDF folder
+2. **Add songs to the folder:** All PDF files in folders containing a `.separate` file will be treated as separated songs
+3. **Automatic processing:** The script will automatically:
+   - Exclude these songs from the main index and artist index
+   - Create a dedicated index for each separated folder
+   - Place separated songs after all regular songs in the final PDF
+
+### Example Structure
+
+```
+songs/
+├── regular_song1.pdf          # Appears in main index
+├── regular_song2.pdf          # Appears in main index
+├── category1/
+│   ├── song3.pdf             # Appears in main index
+│   └── song4.pdf             # Appears in main index
+└── special_collection/
+    ├── .separate             # Marker file (empty)
+    ├── special_song1.pdf     # Excluded from main index
+    └── special_song2.pdf     # Excluded from main index
+```
+
+### Result
+
+- **Main Index:** Contains `regular_song1.pdf`, `regular_song2.pdf`, `song3.pdf`, `song4.pdf`
+- **Special Collection Index:** Contains only `special_song1.pdf`, `special_song2.pdf`
+- **PDF Order:** Regular songs first, then separated songs at the end
+
+### Use Cases
+
+- **Guest collections:** Songs by visiting artists that should be separate from the main repertoire
+- **Seasonal content:** Holiday or special event songs
+- **Different languages:** Collections in different languages that need separate organization
+- **Work-in-progress:** Draft songs that aren't ready for the main collection
 
 ## Hebrew Text Support
 
@@ -111,10 +156,14 @@ project/
 └── songs/
     ├── song1.pdf
     ├── song2.pdf
-    └── category1/
-        ├── more.txt
-        ├── song3.pdf
-        └── song4.pdf
+    ├── category1/
+    │   ├── more.txt
+    │   ├── song3.pdf
+    │   └── song4.pdf
+    └── special_collection/
+        ├── .separate          # Marker for separated index
+        ├── special_song1.pdf
+        └── special_song2.pdf
 ```
 
 ## Troubleshooting
