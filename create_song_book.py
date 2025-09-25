@@ -29,7 +29,7 @@ INDEX_FONT_TYPE = "David"  # Options: "Lucida", "David"
 INDEX_TITLE_FONT_SIZE = 16      # Size for main index titles
 INDEX_HEADER_FONT_SIZE = 16     # Size for column headers ("שם השיר", "עמוד")
 INDEX_SONG_FONT_SIZE = 14       # Size for song entries
-SEPARATE_INDEX_FONT_SIZE_RATIO = 0.85  # Ratio for separate index font size (multiplied by INDEX_SONG_FONT_SIZE)
+SEPARATE_INDEX_FONT_SIZE_RATIO = 1  # Ratio for separate index font size (multiplied by INDEX_SONG_FONT_SIZE)
 
 # --- Constants ---
 COL_TITLE = "שם השיר"
@@ -46,6 +46,55 @@ def reshape_hebrew(text):
     reshaped_text = arabic_reshaper.reshape(text)
     bidi_text = get_display(reshaped_text)
     return bidi_text
+
+def split_long_text(canvas_obj, text, font_name, font_size, max_width, right_margin, left_margin):
+    """
+    Split long text into multiple lines that fit within the available width.
+
+    Args:
+        canvas_obj: ReportLab canvas object
+        text: Text to split
+        font_name: Font name to use
+        font_size: Font size
+        max_width: Maximum width available for text
+        right_margin: Right margin position
+        left_margin: Left margin position
+
+    Returns:
+        List of text lines that fit within max_width
+    """
+    # Check if text fits in one line
+    text_width = canvas_obj.stringWidth(text, font_name, font_size)
+    if text_width <= max_width:
+        return [text]
+
+    # Text is too long, need to split
+    words = text.split()
+    lines = []
+    current_line = ""
+
+    for word in words:
+        # Try adding the next word
+        test_line = current_line + (" " if current_line else "") + word
+        test_width = canvas_obj.stringWidth(test_line, font_name, font_size)
+
+        if test_width <= max_width:
+            current_line = test_line
+        else:
+            # Current line is full, start a new line
+            if current_line:
+                lines.append(current_line)
+                current_line = word
+            else:
+                # Single word is too long, force split
+                lines.append(word)
+                current_line = ""
+
+    # Add the remaining line
+    if current_line:
+        lines.append(current_line)
+
+    return lines
 
 def extract_artist_from_filename(filename_stem):
     """
@@ -190,18 +239,21 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         song_page = next(song_start_pages_iter)
         page_str = str(song_page)
         
+        right_margin = width - 2 * cm
+        left_margin = 2 * cm
+
         # For separate indexes, don't add numbering; for regular indexes, add numbering
         if is_separate_index:
             # For separate indexes with mixed languages, use smaller font and process Hebrew parts
             separate_font_size = int(INDEX_SONG_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
-            
+
             # Process the title to reverse only Hebrew parts
             def fix_hebrew_in_mixed_text(text):
                 import re
                 # Split text by common separators while preserving them
                 parts = re.split('( - | \- )', text)
                 processed_parts = []
-                
+
                 for part in parts:
                     if part in [' - ', ' \- ']:
                         processed_parts.append(part)
@@ -214,49 +266,62 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
                         else:
                             # Mixed or non-Hebrew text - keep as is
                             processed_parts.append(part)
-                
+
                 return ''.join(processed_parts)
-            
-            title_str = fix_hebrew_in_mixed_text(title)  # Remove the numbering (i.)
-            
-            # Use Lucida font for all separate indexes
-            c.setFont("LucidaFont", separate_font_size)
-            page_width = c.stringWidth(page_str, "LucidaFont", separate_font_size)
-            title_width = c.stringWidth(title_str, "LucidaFont", separate_font_size)
-            font_used = "LucidaFont"
-            
-            right_margin = width - 2 * cm
-            left_margin = 2 * cm
-            c.drawRightString(right_margin, y, title_str)
-            c.drawString(left_margin, y, page_str)
+
+            title_str = fix_hebrew_in_mixed_text(title)
+            font_name = "LucidaFont"
+            font_size = separate_font_size
         else:
             # For regular indexes, use numbering with Hebrew reshaping
             title_str = reshape_hebrew(f"{i}. {title}")
-            page_width = c.stringWidth(page_str, "IndexFont", INDEX_SONG_FONT_SIZE)
-            title_width = c.stringWidth(title_str, "IndexFont", INDEX_SONG_FONT_SIZE)
-            right_margin = width - 2 * cm
-            left_margin = 2 * cm
-            c.drawRightString(right_margin, y, title_str)
-            # Draw page number
-            c.drawString(left_margin, y, page_str)
-        # (Clickable link will be added in post-processing with pypdf)
-        dots_start_pos = left_margin + page_width + 0.3 * cm
-        dots_end_pos = right_margin - title_width - 0.3 * cm
-        
-        # Use appropriate font for dots calculation
-        if is_separate_index:
-            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "LucidaFont", separate_font_size))
-            if num_dots > 0:  # Only draw dots if there's space
-                dots_str = '.' * num_dots
-                c.setFont("LucidaFont", separate_font_size)
-                c.drawString(dots_start_pos, y, dots_str)
-                c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
-        else:
-            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "IndexFont", INDEX_SONG_FONT_SIZE))
-            if num_dots > 0:  # Only draw dots if there's space
-                dots_str = '.' * num_dots
-                c.drawString(dots_start_pos, y, dots_str)
-        y -= INDEX_LINE_SPACING
+            font_name = "IndexFont"
+            font_size = INDEX_SONG_FONT_SIZE
+
+        # Calculate available width for title (total width minus page number and margins)
+        c.setFont(font_name, font_size)
+        page_width = c.stringWidth(page_str, font_name, font_size)
+        available_width = right_margin - left_margin - page_width - 1 * cm  # Leave 1cm space between page and title
+
+        # Split title into multiple lines if needed
+        title_lines = split_long_text(c, title_str, font_name, font_size, available_width, right_margin, left_margin)
+
+        # Check if we need a new page (consider all lines needed)
+        lines_needed = len(title_lines)
+        space_needed = lines_needed * INDEX_LINE_SPACING
+        if y - space_needed < 2 * cm:
+            c.showPage()
+            c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
+            y = height - 2 * cm
+
+        # Draw the song entry with multiple lines
+        current_y = y
+        for line_idx, line in enumerate(title_lines):
+            c.setFont(font_name, font_size)
+
+            if line_idx == 0:
+                # First line: draw page number and line
+                c.drawString(left_margin, current_y, page_str)
+                c.drawRightString(right_margin, current_y, line)
+
+                # Add dots only on the first line
+                line_width = c.stringWidth(line, font_name, font_size)
+                dots_start_pos = left_margin + page_width + 0.3 * cm
+                dots_end_pos = right_margin - line_width - 0.3 * cm
+
+                if dots_end_pos > dots_start_pos:
+                    num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', font_name, font_size))
+                    if num_dots > 0:
+                        dots_str = '.' * num_dots
+                        c.drawString(dots_start_pos, current_y, dots_str)
+            else:
+                # Additional lines: only draw the text (right-aligned)
+                c.drawRightString(right_margin, current_y, line)
+
+            current_y -= INDEX_LINE_SPACING
+
+        # Update y position for next entry
+        y = current_y
         if y < 2 * cm:
             c.showPage()
             c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
@@ -354,29 +419,51 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
             else:
                 page_num = start_page  # Fallback
 
-            # Check if we need a new page
-            if y < 3 * cm:
+            # Prepare for multi-line text drawing
+            page_str = str(page_num)
+            c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
+            page_width = c.stringWidth(page_str, "IndexFont", INDEX_SONG_FONT_SIZE)
+            available_width = right_margin - left_margin - page_width - 1 * cm  # Leave 1cm space
+
+            # Split title into multiple lines if needed
+            title_lines = split_long_text(c, display_text, "IndexFont", INDEX_SONG_FONT_SIZE, available_width, right_margin, left_margin)
+
+            # Check if we need a new page (consider all lines needed)
+            lines_needed = len(title_lines)
+            space_needed = lines_needed * INDEX_LINE_SPACING
+            if y - space_needed < 3 * cm:
                 c.showPage()
                 c.setFont('IndexFont', INDEX_SONG_FONT_SIZE)
                 y = height - 2 * cm
 
-            # Draw song entry with correct positioning and dots (like regular index)
-            page_str = str(page_num)
-            page_width = c.stringWidth(page_str, "IndexFont", INDEX_SONG_FONT_SIZE)
-            title_width = c.stringWidth(display_text, "IndexFont", INDEX_SONG_FONT_SIZE)
+            # Draw the song entry with multiple lines
+            current_y = y
+            for line_idx, line in enumerate(title_lines):
+                c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
 
-            # Draw song name on the right, page number on the left (Hebrew RTL layout)
-            c.drawRightString(right_margin, y, display_text)
-            c.drawString(left_margin, y, page_str)
+                if line_idx == 0:
+                    # First line: draw page number and line
+                    c.drawString(left_margin, current_y, page_str)
+                    c.drawRightString(right_margin, current_y, line)
 
-            # Add dots between page number and song name
-            dots_start_pos = left_margin + page_width + 0.3 * cm
-            dots_end_pos = right_margin - title_width - 0.3 * cm
-            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "IndexFont", INDEX_SONG_FONT_SIZE))
-            dots_str = '.' * num_dots
-            c.drawString(dots_start_pos, y, dots_str)
+                    # Add dots only on the first line
+                    line_width = c.stringWidth(line, "IndexFont", INDEX_SONG_FONT_SIZE)
+                    dots_start_pos = left_margin + page_width + 0.3 * cm
+                    dots_end_pos = right_margin - line_width - 0.3 * cm
 
-            y -= INDEX_LINE_SPACING
+                    if dots_end_pos > dots_start_pos:
+                        num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "IndexFont", INDEX_SONG_FONT_SIZE))
+                        if num_dots > 0:
+                            dots_str = '.' * num_dots
+                            c.drawString(dots_start_pos, current_y, dots_str)
+                else:
+                    # Additional lines: only draw the text (right-aligned)
+                    c.drawRightString(right_margin, current_y, line)
+
+                current_y -= INDEX_LINE_SPACING
+
+            # Update y position for next entry
+            y = current_y
 
     c.save()
 
