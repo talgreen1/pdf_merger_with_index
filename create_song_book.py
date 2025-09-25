@@ -19,13 +19,24 @@ hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the 
 # --- Add this line: Configurable extra index file name ---
 EXTRA_INDEX_FILENAME = "more.txt"  # Can be changed as needed
 
+# --- Font Configuration ---
+# Available font options for non-separate indexes:
+# - "Lucida": Uses Lucida Sans Unicode (better for mixed languages, current default)
+# - "David": Uses David Hebrew font (original Hebrew-focused font)
+INDEX_FONT_TYPE = "David"  # Options: "Lucida", "David"
+
+# Font sizes for different index elements
+INDEX_TITLE_FONT_SIZE = 16      # Size for main index titles
+INDEX_HEADER_FONT_SIZE = 16     # Size for column headers ("שם השיר", "עמוד")
+INDEX_SONG_FONT_SIZE = 14       # Size for song entries
+SEPARATE_INDEX_FONT_SIZE_RATIO = 0.85  # Ratio for separate index font size (multiplied by INDEX_SONG_FONT_SIZE)
+
 # --- Constants ---
 COL_TITLE = "שם השיר"
 COL_PAGE = "עמוד"
 INDEX_TITLE = "רגע של אור - כל השירים"
 PAGE_NUMBER_POSITION = "left"  # Options: "both", "left", "right"
 INDEX_LINE_SPACING = 0.8 * cm  # Space between song lines in the index
-INDEX_SONG_FONT_SIZE = 18  # Font size for songs in the index
 
 # --- Feature Flags ---
 ENABLE_SUBFOLDER_INDEX = True  # Set to True to enable subfolder indexes
@@ -85,9 +96,42 @@ print(f"[DEBUG] Total PDFs: {len(all_pdf_files)}, Regular PDFs: {len(pdf_files)}
 
 # --- Step 2: Create index PDF with Hebrew support and page numbers ---
 def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_counts=None, index_title=None, song_start_pages=None):
-    # Try to register Lucida Sans Unicode for mixed language support
+    # Register fonts based on configuration
+    if INDEX_FONT_TYPE == "Lucida":
+        # Try to register Lucida Sans Unicode for mixed language support
+        try:
+            # Try common paths for Lucida Sans Unicode
+            lucida_paths = [
+                "C:/Windows/Fonts/l_10646.ttf",  # Windows path
+                "/System/Library/Fonts/LucidaGrande.ttc",  # macOS path
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"  # Linux fallback
+            ]
+
+            lucida_registered = False
+            for path in lucida_paths:
+                try:
+                    if Path(path).exists():
+                        pdfmetrics.registerFont(TTFont("IndexFont", path))
+                        lucida_registered = True
+                        print(f"[DEBUG] Registered Lucida font from: {path}")
+                        break
+                except:
+                    continue
+
+            if not lucida_registered:
+                print("[DEBUG] Could not find Lucida Sans Unicode, using Hebrew font as fallback")
+                pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+
+        except Exception as e:
+            print(f"[DEBUG] Font registration failed, using Hebrew font as fallback: {e}")
+            pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+    else:  # INDEX_FONT_TYPE == "David"
+        # Use David Hebrew font
+        pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+        print(f"[DEBUG] Registered David Hebrew font from: {font_path}")
+
+    # Always register Lucida for separate indexes (mixed language support)
     try:
-        # Try common paths for Lucida Sans Unicode
         lucida_paths = [
             "C:/Windows/Fonts/l_10646.ttf",  # Windows path
             "/System/Library/Fonts/LucidaGrande.ttc",  # macOS path
@@ -100,20 +144,15 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
                 if Path(path).exists():
                     pdfmetrics.registerFont(TTFont("LucidaFont", path))
                     lucida_registered = True
-                    print(f"[DEBUG] Registered Lucida font from: {path}")
                     break
             except:
                 continue
 
         if not lucida_registered:
-            print("[DEBUG] Could not find Lucida Sans Unicode, using Hebrew font as fallback")
             pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
-            lucida_registered = True
 
     except Exception as e:
-        print(f"[DEBUG] Font registration failed, using Hebrew font as fallback: {e}")
         pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
-        lucida_registered = True
     
     c = canvas.Canvas(str(output_path), pagesize=A4)
     width, height = A4
@@ -121,15 +160,14 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     # For separate indexes with mixed languages, try to use a more universal approach
     is_separate_index = index_title and "(נפרד)" in index_title
     
-    c.setFont("LucidaFont", 20)
+    c.setFont("IndexFont", INDEX_TITLE_FONT_SIZE)
     # Use custom index title if provided, else default
     title_to_draw = reshape_hebrew(index_title) if index_title else reshape_hebrew(INDEX_TITLE)
     c.drawRightString(width - 2 * cm, height - 2 * cm, title_to_draw)
-    c.setFont("LucidaFont", 14)
 
     y = height - 3.5 * cm
     # Add column headers
-    c.setFont("LucidaFont", 16)
+    c.setFont("IndexFont", INDEX_HEADER_FONT_SIZE)
     col_title = reshape_hebrew(COL_TITLE)
     col_page = reshape_hebrew(COL_PAGE)
     right_margin = width - 2 * cm
@@ -137,7 +175,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     c.drawRightString(right_margin, y, col_title)
     c.drawString(left_margin, y, col_page)
     y -= 1.2 * cm
-    c.setFont("LucidaFont", INDEX_SONG_FONT_SIZE)
+    c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
 
     songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
     # --- Use song_start_pages if provided, else fallback to old logic ---
@@ -155,7 +193,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         # For separate indexes, don't add numbering; for regular indexes, add numbering
         if is_separate_index:
             # For separate indexes with mixed languages, use smaller font and process Hebrew parts
-            separate_font_size = int(INDEX_SONG_FONT_SIZE * 0.7)  # Make font 30% smaller
+            separate_font_size = int(INDEX_SONG_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
             
             # Process the title to reverse only Hebrew parts
             def fix_hebrew_in_mixed_text(text):
@@ -194,8 +232,8 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         else:
             # For regular indexes, use numbering with Hebrew reshaping
             title_str = reshape_hebrew(f"{i}. {title}")
-            page_width = c.stringWidth(page_str, "LucidaFont", INDEX_SONG_FONT_SIZE)
-            title_width = c.stringWidth(title_str, "LucidaFont", INDEX_SONG_FONT_SIZE)
+            page_width = c.stringWidth(page_str, "IndexFont", INDEX_SONG_FONT_SIZE)
+            title_width = c.stringWidth(title_str, "IndexFont", INDEX_SONG_FONT_SIZE)
             right_margin = width - 2 * cm
             left_margin = 2 * cm
             c.drawRightString(right_margin, y, title_str)
@@ -205,23 +243,23 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         dots_start_pos = left_margin + page_width + 0.3 * cm
         dots_end_pos = right_margin - title_width - 0.3 * cm
         
-        # Use Lucida font for dots calculation
+        # Use appropriate font for dots calculation
         if is_separate_index:
             num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "LucidaFont", separate_font_size))
             if num_dots > 0:  # Only draw dots if there's space
                 dots_str = '.' * num_dots
                 c.setFont("LucidaFont", separate_font_size)
                 c.drawString(dots_start_pos, y, dots_str)
-                c.setFont("LucidaFont", INDEX_SONG_FONT_SIZE)
+                c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
         else:
-            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "LucidaFont", INDEX_SONG_FONT_SIZE))
+            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "IndexFont", INDEX_SONG_FONT_SIZE))
             if num_dots > 0:  # Only draw dots if there's space
                 dots_str = '.' * num_dots
                 c.drawString(dots_start_pos, y, dots_str)
         y -= INDEX_LINE_SPACING
         if y < 2 * cm:
             c.showPage()
-            c.setFont("LucidaFont", INDEX_SONG_FONT_SIZE)
+            c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
             y = height - 2 * cm
 
     c.save()
@@ -234,7 +272,7 @@ def estimate_index_pages(num_songs):
 
 def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_start_page_map=None):
     """
-    Create an artist-based index PDF with Lucida font support.
+    Create an artist-based index PDF with configurable font support.
 
     Args:
         artist_songs (dict): Dictionary mapping artist names to list of (song_name, pdf_path) tuples
@@ -243,32 +281,38 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
         start_page (int): Starting page number for songs
         pdf_start_page_map (dict): Mapping of PDF paths to their start pages in merged PDF
     """
-    # Try to register Lucida Sans Unicode, fallback to Hebrew font
-    try:
-        lucida_paths = [
-            "C:/Windows/Fonts/l_10646.ttf",  # Windows path
-            "/System/Library/Fonts/LucidaGrande.ttc",  # macOS path
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"  # Linux fallback
-        ]
+    # Register fonts based on configuration (same logic as create_index)
+    if INDEX_FONT_TYPE == "Lucida":
+        # Try to register Lucida Sans Unicode for mixed language support
+        try:
+            lucida_paths = [
+                "C:/Windows/Fonts/l_10646.ttf",  # Windows path
+                "/System/Library/Fonts/LucidaGrande.ttc",  # macOS path
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"  # Linux fallback
+            ]
 
-        lucida_registered = False
-        for path in lucida_paths:
-            try:
-                if Path(path).exists():
-                    pdfmetrics.registerFont(TTFont("LucidaFont", path))
-                    lucida_registered = True
-                    print(f"[DEBUG] Registered Lucida font for artist index from: {path}")
-                    break
-            except:
-                continue
+            lucida_registered = False
+            for path in lucida_paths:
+                try:
+                    if Path(path).exists():
+                        pdfmetrics.registerFont(TTFont("IndexFont", path))
+                        lucida_registered = True
+                        print(f"[DEBUG] Registered Lucida font for artist index from: {path}")
+                        break
+                except:
+                    continue
 
-        if not lucida_registered:
-            print("[DEBUG] Could not find Lucida Sans Unicode for artist index, using Hebrew font as fallback")
-            pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
+            if not lucida_registered:
+                print("[DEBUG] Could not find Lucida Sans Unicode for artist index, using Hebrew font as fallback")
+                pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
 
-    except Exception as e:
-        print(f"[DEBUG] Font registration failed for artist index, using Hebrew font as fallback: {e}")
-        pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
+        except Exception as e:
+            print(f"[DEBUG] Font registration failed for artist index, using Hebrew font as fallback: {e}")
+            pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+    else:  # INDEX_FONT_TYPE == "David"
+        # Use David Hebrew font
+        pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+        print(f"[DEBUG] Registered David Hebrew font for artist index from: {font_path}")
 
     # Create canvas
     c = canvas.Canvas(str(output_path), pagesize=A4)
@@ -276,12 +320,12 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
 
     # Title
     title = reshape_hebrew("אומנים")
-    c.setFont('LucidaFont', 20)
+    c.setFont('IndexFont', INDEX_TITLE_FONT_SIZE)
     c.drawRightString(width - 2 * cm, height - 2 * cm, title)
 
     # Column headers - match regular index format
     y = height - 3.5 * cm
-    c.setFont('LucidaFont', 16)
+    c.setFont('IndexFont', INDEX_HEADER_FONT_SIZE)
     col_title = reshape_hebrew(COL_TITLE)  # "שם השיר"
     col_page = reshape_hebrew(COL_PAGE)    # "עמוד"
     right_margin = width - 2 * cm
@@ -289,7 +333,7 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
     c.drawRightString(right_margin, y, col_title)
     c.drawString(left_margin, y, col_page)
     y -= 1.2 * cm
-    c.setFont('LucidaFont', INDEX_SONG_FONT_SIZE)
+    c.setFont('IndexFont', INDEX_SONG_FONT_SIZE)
 
     # Sort artists alphabetically using Hebrew sorting (case-insensitive)
     sorted_artists = sorted(artist_songs.keys(), key=lambda x: x.lower())
@@ -313,13 +357,13 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
             # Check if we need a new page
             if y < 3 * cm:
                 c.showPage()
-                c.setFont('LucidaFont', INDEX_SONG_FONT_SIZE)
+                c.setFont('IndexFont', INDEX_SONG_FONT_SIZE)
                 y = height - 2 * cm
 
             # Draw song entry with correct positioning and dots (like regular index)
             page_str = str(page_num)
-            page_width = c.stringWidth(page_str, "LucidaFont", INDEX_SONG_FONT_SIZE)
-            title_width = c.stringWidth(display_text, "LucidaFont", INDEX_SONG_FONT_SIZE)
+            page_width = c.stringWidth(page_str, "IndexFont", INDEX_SONG_FONT_SIZE)
+            title_width = c.stringWidth(display_text, "IndexFont", INDEX_SONG_FONT_SIZE)
 
             # Draw song name on the right, page number on the left (Hebrew RTL layout)
             c.drawRightString(right_margin, y, display_text)
@@ -328,7 +372,7 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
             # Add dots between page number and song name
             dots_start_pos = left_margin + page_width + 0.3 * cm
             dots_end_pos = right_margin - title_width - 0.3 * cm
-            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "LucidaFont", INDEX_SONG_FONT_SIZE))
+            num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "IndexFont", INDEX_SONG_FONT_SIZE))
             dots_str = '.' * num_dots
             c.drawString(dots_start_pos, y, dots_str)
 
