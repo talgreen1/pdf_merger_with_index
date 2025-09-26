@@ -251,11 +251,11 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
             def fix_hebrew_in_mixed_text(text):
                 import re
                 # Split text by common separators while preserving them
-                parts = re.split('( - | \- )', text)
+                parts = re.split(r'( - | \- )', text)
                 processed_parts = []
 
                 for part in parts:
-                    if part in [' - ', ' \- ']:
+                    if part in [' - ', r' \- ']:
                         processed_parts.append(part)
                     else:
                         # Check if this part contains Hebrew characters
@@ -767,70 +767,136 @@ def add_link_annotation(page, rect, target_page_num):
     else:
         page[NameObject("/Annots")] = ArrayObject([annotation])
 
-def add_all_index_links_with_pypdf(pdf_path, index_pdfs, index_page_counts, index_infos, pdf_start_page_map):
+def add_post_process_links(pdf_path):
+    """
+    Post-process the final PDF to add individual clickable links for each page number.
+    This approach simulates the exact layout logic to find precise positions.
+    """
     from pypdf import PdfReader, PdfWriter
+
     reader = PdfReader(str(pdf_path))
     writer = PdfWriter()
 
-    total_index_pages = sum(index_page_counts)
-    
-    # Create a mapping from PDF path to its actual position in the merged PDF
-    # In the merged PDF: [indexes][regular_songs][separate_songs]...
-    pdf_to_merged_position = {}
-    current_position = total_index_pages  # Songs start after indexes
-    
-    # Regular songs first
-    for pdf, page_count in zip(pdf_files, pdf_page_counts):
-        pdf_to_merged_position[pdf] = current_position
-        current_position += page_count
-    
-    # Separate songs after regular songs
-    for folder, folder_songs in separate_folder_songs.items():
-        for pdf in folder_songs:
-            page_count = PdfReader(str(pdf)).get_num_pages()
-            pdf_to_merged_position[pdf] = current_position
-            current_position += page_count
-    
+    # First, find where the songs actually start by looking for page numbers
+    total_pages = len(reader.pages)
+    first_song_page_idx = None
 
-    # Add bookmarks for each song start page
-    for pdf, start_page in all_pdf_start_page_map.items():
-        writer.add_outline_item(pdf.stem, pdf_to_merged_position[pdf])  # 0-based
-
-    # For each index (main, subfolder, extra)
-    page_offset = 0
-    for idx, (pdfs, page_counts, index_path, index_title) in enumerate(index_infos):
-        songs_per_page = int((A4[1] - 5.5 * cm) // INDEX_LINE_SPACING)
-        y_start = A4[1] - 3.5 * cm - 1.2 * cm
-        song_idx = 0
-        for page_num in range(index_page_counts[idx]):
-            page = reader.pages[page_offset + page_num]
-            y = y_start  # Reset y for each page
-            for line in range(songs_per_page):
-                if song_idx >= len(pdfs):
+    # Look for the first page with a page number "1" at the bottom
+    for page_idx in range(total_pages):
+        try:
+            page = reader.pages[page_idx]
+            text = page.extract_text()
+            # Look for page number "1" that's likely at the bottom
+            if '1' in text:
+                # Check if this looks like a song page (has page number at bottom)
+                lines = text.split('\n')
+                for line in lines[-3:]:  # Check last few lines
+                    if line.strip() == '1':
+                        first_song_page_idx = page_idx
+                        break
+                if first_song_page_idx is not None:
                     break
-                song_pdf = pdfs[song_idx]
-                song_start_page = all_pdf_start_page_map[song_pdf]
-                
-                # Get the actual position in the merged PDF (0-based)
-                target_page = pdf_to_merged_position[song_pdf]
-                page_str = str(song_start_page)
-                page_width = 20  # fallback width
-                x1 = 2 * cm
-                y1 = y
-                x2 = x1 + page_width
-                y2 = y + INDEX_SONG_FONT_SIZE
-                add_link_annotation(page, (x1, y1, x2, y2), target_page)
-                
+        except:
+            continue
+
+    if first_song_page_idx is None:
+        print("[ERROR] Could not find first song page!")
+        return
+
+    print(f"[DEBUG] First song page found at PDF index {first_song_page_idx}")
+
+    # Create a mapping: displayed_page_number -> actual_pdf_page_index
+    page_number_to_pdf_index = {}
+    current_song_page = 1
+
+    for pdf_idx in range(first_song_page_idx, total_pages):
+        page_number_to_pdf_index[current_song_page] = pdf_idx
+        current_song_page += 1
+
+    print(f"[DEBUG] Mapped {len(page_number_to_pdf_index)} page numbers to PDF indices")
+
+    # Process each index page individually
+    links_added = 0
+    for page_idx in range(first_song_page_idx):
+        page = reader.pages[page_idx]
+
+        # Use the same layout logic as in create_index function
+        songs_per_page = int((A4[1] - 5.5 * cm) // INDEX_LINE_SPACING)
+        y_start = A4[1] - 3.5 * cm - 1.2 * cm  # Same as in create_index
+
+        try:
+            # Extract text to understand the content structure
+            text = page.extract_text()
+            lines = text.split('\n')
+
+            # Find all numbers that could be page numbers
+            page_numbers_found = []
+            for line in lines:
+                line = line.strip()
+                # Look for standalone numbers that could be page numbers
+                if line.isdigit():
+                    try:
+                        page_num = int(line)
+                        if 1 <= page_num <= 150:  # Reasonable range for song page numbers
+                            page_numbers_found.append(page_num)
+                    except:
+                        pass
+                # Also check for numbers at the beginning of lines (before dots)
+                elif '.' in line and line.split('.')[0].strip().isdigit():
+                    try:
+                        page_num = int(line.split('.')[0].strip())
+                        if 1 <= page_num <= 150:
+                            page_numbers_found.append(page_num)
+                    except:
+                        pass
+
+            # Remove duplicates while preserving order
+            unique_page_numbers = []
+            seen = set()
+            for num in page_numbers_found:
+                if num not in seen and num in page_number_to_pdf_index:
+                    unique_page_numbers.append(num)
+                    seen.add(num)
+
+
+            # Create individual links for each page number found
+            y = y_start
+            for i, page_num in enumerate(unique_page_numbers):
+                if i >= songs_per_page:  # Don't exceed expected songs per page
+                    break
+
+                if page_num in page_number_to_pdf_index:
+                    target_pdf_idx = page_number_to_pdf_index[page_num]
+
+                    # Create a small, precise link area for this specific page number
+                    page_str = str(page_num)
+                    approx_char_width = INDEX_SONG_FONT_SIZE * 0.6
+                    text_width = len(page_str) * approx_char_width
+
+                    x1 = 2 * cm - 0.2 * cm  # Slightly left of where page numbers are drawn
+                    y1 = y - INDEX_SONG_FONT_SIZE
+                    x2 = x1 + text_width + 0.4 * cm  # Slightly wider than text
+                    y2 = y + 0.2 * cm  # Slightly taller than text
+
+                    add_link_annotation(page, (x1, y1, x2, y2), target_pdf_idx)
+                    links_added += 1
+
                 y -= INDEX_LINE_SPACING
-                song_idx += 1
-            writer.add_page(page)
-        page_offset += index_page_counts[idx]
-    # Add the rest of the pages (songs)
-    for i in range(total_index_pages, len(reader.pages)):
-        writer.add_page(reader.pages[i])
-    # Save output
+
+        except Exception as e:
+            print(f"[DEBUG] Could not process page {page_idx}: {e}")
+
+        writer.add_page(page)
+
+    # Add the rest of the pages (songs) without modification
+    for page_idx in range(first_song_page_idx, total_pages):
+        writer.add_page(reader.pages[page_idx])
+
+    # Save the updated PDF
     with open(str(pdf_path), "wb") as f:
         writer.write(f)
+
+    print(f"[DEBUG] Added {links_added} individual page number links successfully")
 
 # Prepare index_infos: (pdfs, page_counts, index_path, index_title) for all indexes
 index_infos = []
@@ -866,7 +932,7 @@ for folder_songs, separate_index_pdf, folder_name in separate_index_infos:
     separate_page_counts = [PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs]
     index_infos.append((folder_songs, separate_page_counts, separate_index_pdf, f"{folder_name} (נפרד)"))
 
-add_all_index_links_with_pypdf(output_pdf, index_pdfs, index_page_counts, index_infos, all_pdf_start_page_map)
+add_post_process_links(output_pdf)
 
 # --- Cleanup ---
 for idx_pdf in index_pdfs:
