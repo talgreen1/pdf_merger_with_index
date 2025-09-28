@@ -395,7 +395,7 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
             indexes_on_current_page = 0
 
         # Draw this index
-        index_title = f"{folder_name} (נפרד)"
+        index_title = folder_name
 
         # Title
         c.setFont("LucidaFont", INDEX_TITLE_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
@@ -819,7 +819,7 @@ for item in separate_index_infos:
             hebrew_font_path,
             start_page=1,
             pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs],
-            index_title=f"{folder_name} (נפרד)",
+            index_title=folder_name,
             song_start_pages=separate_song_start_pages
         )
         print(f"[DEBUG] Created separate index for folder '{folder_name}' with {len(folder_songs)} songs")
@@ -1009,12 +1009,12 @@ for item in separate_index_infos:
         for folder_songs, folder_name in combined_separate_infos:
             all_combined_songs.extend(folder_songs)
             all_combined_page_counts.extend([PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs])
-        index_infos.append((all_combined_songs, all_combined_page_counts, combined_separate_pdf, "אינדקסים נפרדים"))
+        index_infos.append((all_combined_songs, all_combined_page_counts, combined_separate_pdf, "Combined Separate Indexes"))
     else:
         # This is the original individual index case
         folder_songs, separate_index_pdf, folder_name = item
         separate_page_counts = [PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs]
-        index_infos.append((folder_songs, separate_page_counts, separate_index_pdf, f"{folder_name} (נפרד)"))
+        index_infos.append((folder_songs, separate_page_counts, separate_index_pdf, folder_name))
 
 add_all_index_links_with_pypdf(output_pdf, index_pdfs, index_page_counts, index_infos, all_pdf_start_page_map)
 
