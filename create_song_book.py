@@ -37,6 +37,7 @@ COL_PAGE = "עמוד"
 INDEX_TITLE = "רגע של אור - כל השירים"
 PAGE_NUMBER_POSITION = "left"  # Options: "both", "left", "right"
 INDEX_LINE_SPACING = 0.6 * cm  # Space between song lines in the index (reduced for 2-column layout)
+SEPARATE_INDEX_SPACING = 0.7 * cm  # Space between separate indexes on the same page
 
 # --- Feature Flags ---
 ENABLE_SUBFOLDER_INDEX = True  # Set to True to enable subfolder indexes
@@ -170,6 +171,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
                 try:
                     if Path(path).exists():
                         pdfmetrics.registerFont(TTFont("IndexFont", path))
+                        pdfmetrics.registerFont(TTFont("IndexFontBold", path))
                         lucida_registered = True
                         print(f"[DEBUG] Registered Lucida font from: {path}")
                         break
@@ -179,13 +181,16 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
             if not lucida_registered:
                 print("[DEBUG] Could not find Lucida Sans Unicode, using Hebrew font as fallback")
                 pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+                pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))
 
         except Exception as e:
             print(f"[DEBUG] Font registration failed, using Hebrew font as fallback: {e}")
             pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+            pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))
     else:  # INDEX_FONT_TYPE == "David"
         # Use David Hebrew font
         pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+        pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))  # Register as bold (same font, different name)
         print(f"[DEBUG] Registered David Hebrew font from: {font_path}")
 
     # Always register Lucida for separate indexes (mixed language support)
@@ -201,6 +206,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
             try:
                 if Path(path).exists():
                     pdfmetrics.registerFont(TTFont("LucidaFont", path))
+                    pdfmetrics.registerFont(TTFont("LucidaFontBold", path))
                     lucida_registered = True
                     break
             except:
@@ -218,7 +224,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     # For separate indexes with mixed languages, try to use a more universal approach
     is_separate_index = index_title and "(נפרד)" in index_title
 
-    c.setFont("IndexFont", INDEX_TITLE_FONT_SIZE)
+    c.setFont("IndexFontBold", INDEX_TITLE_FONT_SIZE)  # Use bold font for titles
     # Use custom index title if provided, else default
     title_to_draw = reshape_hebrew(index_title) if index_title else reshape_hebrew(INDEX_TITLE)
     c.drawRightString(width - 2 * cm, height - 2 * cm, title_to_draw)
@@ -429,14 +435,17 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
             try:
                 if Path(path).exists():
                     pdfmetrics.registerFont(TTFont("LucidaFont", path))
+                    pdfmetrics.registerFont(TTFont("LucidaFontBold", path))
                     lucida_registered = True
                     break
             except:
                 continue
         if not lucida_registered:
             pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
+            pdfmetrics.registerFont(TTFont("LucidaFontBold", str(font_path)))
     except Exception as e:
         pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
+        pdfmetrics.registerFont(TTFont("LucidaFontBold", str(font_path)))
 
     c = canvas.Canvas(str(output_path), pagesize=A4)
     width, height = A4
@@ -481,7 +490,7 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
         index_title = folder_name
 
         # Title
-        c.setFont("LucidaFont", INDEX_TITLE_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
+        c.setFont("LucidaFontBold", INDEX_TITLE_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)  # Use bold font for title
         title_to_draw = reshape_hebrew(index_title)
         c.drawRightString(width - margin_right, current_y, title_to_draw)
         current_y -= 0.8 * cm  # Reduced from 1.5cm to 0.8cm
@@ -499,7 +508,7 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
                 current_y, margin_left, margin_right, width, available_width
             )
 
-        current_y -= 0.5 * cm  # Reduced space between indexes (from 1cm to 0.5cm)
+        current_y -= SEPARATE_INDEX_SPACING  # Configurable space between indexes
         indexes_on_current_page += 1
 
     c.save()
@@ -672,16 +681,20 @@ def create_combined_folder_indexes(folder_index_infos, output_path, font_path, p
                 try:
                     if Path(path).exists():
                         pdfmetrics.registerFont(TTFont("IndexFont", path))
+                        pdfmetrics.registerFont(TTFont("IndexFontBold", path))
                         lucida_registered = True
                         break
                 except:
                     continue
             if not lucida_registered:
                 pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+                pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))
         except Exception as e:
             pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+            pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))
     else:
         pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+        pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))
 
     c = canvas.Canvas(str(output_path), pagesize=A4)
     width, height = A4
@@ -742,7 +755,7 @@ def create_combined_folder_indexes(folder_index_infos, output_path, font_path, p
                 col_right_margin = right_column_right
 
         # Draw index title
-        c.setFont("IndexFont", INDEX_TITLE_FONT_SIZE)
+        c.setFont("IndexFontBold", INDEX_TITLE_FONT_SIZE)  # Use bold font for title
         title_to_draw = reshape_hebrew(folder_name)
         c.drawRightString(col_right_margin, current_y, title_to_draw)
         current_y -= 1.2 * cm
@@ -850,6 +863,7 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
                 try:
                     if Path(path).exists():
                         pdfmetrics.registerFont(TTFont("IndexFont", path))
+                        pdfmetrics.registerFont(TTFont("IndexFontBold", path))
                         lucida_registered = True
                         print(f"[DEBUG] Registered Lucida font for artist index from: {path}")
                         break
@@ -859,13 +873,16 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
             if not lucida_registered:
                 print("[DEBUG] Could not find Lucida Sans Unicode for artist index, using Hebrew font as fallback")
                 pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+                pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))
 
         except Exception as e:
             print(f"[DEBUG] Font registration failed for artist index, using Hebrew font as fallback: {e}")
             pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+            pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))
     else:  # INDEX_FONT_TYPE == "David"
         # Use David Hebrew font
         pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+        pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))
         print(f"[DEBUG] Registered David Hebrew font for artist index from: {font_path}")
 
     # Create canvas
@@ -874,7 +891,7 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
 
     # Title
     title = reshape_hebrew("אומנים")
-    c.setFont('IndexFont', INDEX_TITLE_FONT_SIZE)
+    c.setFont('IndexFontBold', INDEX_TITLE_FONT_SIZE)  # Use bold font for title
     c.drawRightString(width - 2 * cm, height - 2 * cm, title)
 
     # --- 2-Column Layout Configuration ---
