@@ -50,6 +50,19 @@ def reshape_hebrew(text):
     bidi_text = get_display(reshaped_text)
     return bidi_text
 
+def draw_bold_text(canvas, x, y, text, font_name, font_size, alignment="left"):
+    """Draw bold text by drawing the text multiple times with slight offsets."""
+    canvas.setFont(font_name, font_size)
+
+    # Define small offsets to simulate bold
+    offsets = [(0, 0), (0.3, 0), (0, 0.3), (0.3, 0.3)]
+
+    for dx, dy in offsets:
+        if alignment == "right":
+            canvas.drawRightString(x + dx, y + dy, text)
+        else:
+            canvas.drawString(x + dx, y + dy, text)
+
 def split_long_text(canvas_obj, text, font_name, font_size, max_width, right_margin, left_margin):
     """
     Split long text into multiple lines that fit within the available width.
@@ -190,7 +203,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     else:  # INDEX_FONT_TYPE == "David"
         # Use David Hebrew font
         pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
-        pdfmetrics.registerFont(TTFont("IndexFontBold", str(font_path)))  # Register as bold (same font, different name)
+        # Use Helvetica-Bold for titles (built-in font that supports bold)
         print(f"[DEBUG] Registered David Hebrew font from: {font_path}")
 
     # Always register Lucida for separate indexes (mixed language support)
@@ -224,10 +237,10 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     # For separate indexes with mixed languages, try to use a more universal approach
     is_separate_index = index_title and "(נפרד)" in index_title
 
-    c.setFont("IndexFontBold", INDEX_TITLE_FONT_SIZE)  # Use bold font for titles
     # Use custom index title if provided, else default
     title_to_draw = reshape_hebrew(index_title) if index_title else reshape_hebrew(INDEX_TITLE)
-    c.drawRightString(width - 2 * cm, height - 2 * cm, title_to_draw)
+    # Draw bold title
+    draw_bold_text(c, width - 2 * cm, height - 2 * cm, title_to_draw, "IndexFont", INDEX_TITLE_FONT_SIZE, "right")
 
     # --- 2-Column Layout Configuration ---
     margin_left = 1.5 * cm
@@ -490,9 +503,10 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
         index_title = folder_name
 
         # Title
-        c.setFont("LucidaFontBold", INDEX_TITLE_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)  # Use bold font for title
         title_to_draw = reshape_hebrew(index_title)
-        c.drawRightString(width - margin_right, current_y, title_to_draw)
+        # Draw bold title
+        draw_bold_text(c, width - margin_right, current_y, title_to_draw, "LucidaFont",
+                      INDEX_TITLE_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO, "right")
         current_y -= 0.8 * cm  # Reduced from 1.5cm to 0.8cm
 
         if use_columns and num_songs > 1:
@@ -755,9 +769,9 @@ def create_combined_folder_indexes(folder_index_infos, output_path, font_path, p
                 col_right_margin = right_column_right
 
         # Draw index title
-        c.setFont("IndexFontBold", INDEX_TITLE_FONT_SIZE)  # Use bold font for title
         title_to_draw = reshape_hebrew(folder_name)
-        c.drawRightString(col_right_margin, current_y, title_to_draw)
+        # Draw bold title
+        draw_bold_text(c, col_right_margin, current_y, title_to_draw, "IndexFont", INDEX_TITLE_FONT_SIZE, "right")
         current_y -= 1.2 * cm
 
         # Draw headers
@@ -891,8 +905,8 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
 
     # Title
     title = reshape_hebrew("אומנים")
-    c.setFont('IndexFontBold', INDEX_TITLE_FONT_SIZE)  # Use bold font for title
-    c.drawRightString(width - 2 * cm, height - 2 * cm, title)
+    # Draw bold title
+    draw_bold_text(c, width - 2 * cm, height - 2 * cm, title, "IndexFont", INDEX_TITLE_FONT_SIZE, "right")
 
     # --- 2-Column Layout Configuration ---
     margin_left = 1.5 * cm
