@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python:*)",
       "Read(//c/temp/songs/Res/**)",
-      "Read(//c/temp/songs/pdfs/**)"
+      "Read(//c/temp/songs/pdfs/**)",
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

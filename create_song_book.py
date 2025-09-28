@@ -1118,6 +1118,7 @@ for extra_index_file in pdf_folder.rglob(EXTRA_INDEX_FILENAME):
 
 # --- Subfolder indexes ---
 subfolder_infos = []
+subfolder_temp_files = []  # Track all temporary files created for cleanup
 if ENABLE_SUBFOLDER_INDEX:
     print("[DEBUG] ENABLE_SUBFOLDER_INDEX is True. Checking subfolders...")
     for subfolder in [f for f in pdf_folder.iterdir() if f.is_dir()]:
@@ -1140,6 +1141,7 @@ if ENABLE_SUBFOLDER_INDEX:
         subfolder_index_pdf = output_folder / f"index_{subfolder.name}_temp.pdf"
         folder_name = subfolder.name
         subfolder_infos.append((subfolder_pdfs, subfolder_page_counts, subfolder_index_pdf, folder_name))
+        subfolder_temp_files.append(subfolder_index_pdf)  # Track for cleanup
 
 # --- Process subfolder indexes: combine small ones, keep large ones separate ---
 subfolder_combined_infos = []
@@ -1581,6 +1583,11 @@ add_all_index_links_with_pypdf(output_pdf, index_pdfs, index_page_counts, index_
 for idx_pdf in index_pdfs:
     if idx_pdf.exists():
         idx_pdf.unlink()
+# Clean up subfolder temporary files that may not be in index_pdfs
+for temp_file in subfolder_temp_files:
+    if temp_file.exists():
+        temp_file.unlink()
+        print(f"[DEBUG] Cleaned up temporary file: {temp_file}")
 if temp_merged_path.exists():
     temp_merged_path.unlink()
 
