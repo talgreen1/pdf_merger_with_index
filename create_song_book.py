@@ -40,6 +40,7 @@ INDEX_LINE_SPACING = 0.8 * cm  # Space between song lines in the index
 
 # --- Feature Flags ---
 ENABLE_SUBFOLDER_INDEX = True  # Set to True to enable subfolder indexes
+MULTIPLE_INDEXES_PER_PAGE = True  # Set to True to put multiple separate indexes on the same page if they fit
 
 # --- Helpers ---
 def reshape_hebrew(text):
@@ -335,6 +336,120 @@ def estimate_index_pages(num_songs):
     songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
     return (num_songs + songs_per_page - 1) // songs_per_page
 
+def create_combined_separate_indexes(separate_index_infos, output_path, font_path, pdf_start_page_map):
+    """
+    Create a combined PDF with multiple small separate indexes on the same page when they fit.
+
+    Args:
+        separate_index_infos: List of tuples (folder_songs, folder_name)
+        output_path: Path for the combined output PDF
+        font_path: Path to font file
+        pdf_start_page_map: Map from PDF paths to their start pages
+    """
+    # Register fonts (similar to create_index)
+    try:
+        lucida_paths = [
+            "C:/Windows/Fonts/l_10646.ttf",
+            "/System/Library/Fonts/LucidaGrande.ttc",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+        ]
+        lucida_registered = False
+        for path in lucida_paths:
+            try:
+                if Path(path).exists():
+                    pdfmetrics.registerFont(TTFont("LucidaFont", path))
+                    lucida_registered = True
+                    break
+            except:
+                continue
+        if not lucida_registered:
+            pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
+    except Exception as e:
+        pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
+
+    c = canvas.Canvas(str(output_path), pagesize=A4)
+    width, height = A4
+
+    # Calculate available space per index
+    margin_top = 2 * cm
+    margin_bottom = 2 * cm
+    margin_left = 2 * cm
+    margin_right = 2 * cm
+    available_height = height - margin_top - margin_bottom
+    available_width = width - margin_left - margin_right
+
+    current_y = height - margin_top
+    indexes_on_current_page = 0
+    max_indexes_per_page = 3  # Conservative estimate
+
+    for folder_songs, folder_name in separate_index_infos:
+        # Calculate space needed for this index
+        num_songs = len(folder_songs)
+        lines_needed = num_songs + 3  # +3 for title and headers and spacing
+        space_needed = lines_needed * INDEX_LINE_SPACING + 2 * cm  # Extra space for title
+
+        # Check if we need a new page
+        if indexes_on_current_page > 0 and (current_y - space_needed < margin_bottom or indexes_on_current_page >= max_indexes_per_page):
+            c.showPage()
+            current_y = height - margin_top
+            indexes_on_current_page = 0
+
+        # Draw this index
+        index_title = f"{folder_name} (נפרד)"
+
+        # Title
+        c.setFont("LucidaFont", INDEX_TITLE_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
+        title_to_draw = reshape_hebrew(index_title)
+        c.drawRightString(width - margin_right, current_y, title_to_draw)
+        current_y -= 1.5 * cm
+
+        # Headers
+        c.setFont("LucidaFont", INDEX_HEADER_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
+        col_title = reshape_hebrew(COL_TITLE)
+        col_page = reshape_hebrew(COL_PAGE)
+        c.drawRightString(width - margin_right, current_y, col_title)
+        c.drawString(margin_left, current_y, col_page)
+        current_y -= 1.2 * cm
+
+        # Songs
+        font_size = INDEX_SONG_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO
+        c.setFont("LucidaFont", font_size)
+        for pdf_path in folder_songs:
+            title = pdf_path.stem
+            song_page = pdf_start_page_map[pdf_path]
+            page_str = str(song_page)
+            page_width = c.stringWidth(page_str, "LucidaFont", font_size)
+
+            # Handle long titles (split if necessary)
+            max_width = available_width - 3 * cm  # Leave space for page number and dots
+            lines = split_long_text(c, title, "LucidaFont", font_size, max_width, width - margin_right, margin_left + 3 * cm)
+
+            for line_idx, line in enumerate(lines):
+                if line_idx == 0:
+                    # First line: show both title and page number
+                    c.drawString(margin_left, current_y, page_str)
+                    c.drawRightString(width - margin_right, current_y, reshape_hebrew(line))
+
+                    # Add dots only on the first line
+                    line_width = c.stringWidth(line, "LucidaFont", font_size)
+                    dots_start_pos = margin_left + page_width + 0.3 * cm
+                    dots_end_pos = width - margin_right - line_width - 0.3 * cm
+
+                    if dots_end_pos > dots_start_pos:
+                        num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "LucidaFont", font_size))
+                        if num_dots > 0:
+                            dots_str = '.' * num_dots
+                            c.drawString(dots_start_pos, current_y, dots_str)
+                else:
+                    # Continuation lines: only title
+                    c.drawRightString(width - margin_right, current_y, reshape_hebrew(line))
+                current_y -= INDEX_LINE_SPACING
+
+        current_y -= 1 * cm  # Extra space between indexes
+        indexes_on_current_page += 1
+
+    c.save()
+
 def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_start_page_map=None):
     """
     Create an artist-based index PDF with configurable font support.
@@ -576,14 +691,28 @@ if artist_songs:
 
 # Add separate indexes at the end (for folders with .separate files)
 separate_index_infos = []
-for folder, folder_songs in separate_folder_songs.items():
-    if folder_songs:
-        separate_index_pages = estimate_index_pages(len(folder_songs))
-        separate_index_pdf = output_folder / f"index_separate_{folder.name}_temp.pdf"
-        index_pdfs.append(separate_index_pdf)
-        index_page_counts.append(separate_index_pages)
-        separate_index_infos.append((folder_songs, separate_index_pdf, folder.name))
-        print(f"[DEBUG] Added separate index for folder '{folder.name}' with {len(folder_songs)} songs, estimated {separate_index_pages} pages")
+if MULTIPLE_INDEXES_PER_PAGE and separate_folder_songs:
+    # Create one combined PDF for all small separate indexes
+    combined_separate_infos = [(folder_songs, folder.name) for folder, folder_songs in separate_folder_songs.items() if folder_songs]
+    if combined_separate_infos:
+        # Estimate pages for the combined index (conservative estimate: sum of individual estimates)
+        total_songs = sum(len(folder_songs) for folder_songs, _ in combined_separate_infos)
+        combined_pages = estimate_index_pages(total_songs) if len(combined_separate_infos) > 2 else len(combined_separate_infos)
+        combined_separate_pdf = output_folder / "index_combined_separate_temp.pdf"
+        index_pdfs.append(combined_separate_pdf)
+        index_page_counts.append(combined_pages)
+        separate_index_infos = [(combined_separate_infos, combined_separate_pdf, "Combined")]
+        print(f"[DEBUG] Will create combined separate index with {len(combined_separate_infos)} separate indexes, estimated {combined_pages} pages")
+else:
+    # Original behavior: create individual indexes
+    for folder, folder_songs in separate_folder_songs.items():
+        if folder_songs:
+            separate_index_pages = estimate_index_pages(len(folder_songs))
+            separate_index_pdf = output_folder / f"index_separate_{folder.name}_temp.pdf"
+            index_pdfs.append(separate_index_pdf)
+            index_page_counts.append(separate_index_pages)
+            separate_index_infos.append((folder_songs, separate_index_pdf, folder.name))
+            print(f"[DEBUG] Added separate index for folder '{folder.name}' with {len(folder_songs)} songs, estimated {separate_index_pages} pages")
 
 # Regenerate all indexes with correct start_page
 main_index_pages = index_page_counts[0]
@@ -674,18 +803,26 @@ if artist_songs and artist_index_pdf:
     )
 
 # --- Create separate indexes with correct page numbers ---
-for folder_songs, separate_index_pdf, folder_name in separate_index_infos:
-    separate_song_start_pages = [separate_pdf_start_page_map[p] for p in folder_songs]
-    create_index(
-        folder_songs,
-        separate_index_pdf,
-        hebrew_font_path,
-        start_page=1,
-        pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs],
-        index_title=f"{folder_name} (נפרד)",
-        song_start_pages=separate_song_start_pages
-    )
-    print(f"[DEBUG] Created separate index for folder '{folder_name}' with {len(folder_songs)} songs")
+for item in separate_index_infos:
+    if len(item) == 3 and item[2] == "Combined":
+        # This is the combined separate indexes case
+        combined_separate_infos, combined_separate_pdf, _ = item
+        create_combined_separate_indexes(combined_separate_infos, combined_separate_pdf, hebrew_font_path, separate_pdf_start_page_map)
+        print(f"[DEBUG] Created combined separate index with {len(combined_separate_infos)} separate indexes")
+    else:
+        # This is the original individual index case
+        folder_songs, separate_index_pdf, folder_name = item
+        separate_song_start_pages = [separate_pdf_start_page_map[p] for p in folder_songs]
+        create_index(
+            folder_songs,
+            separate_index_pdf,
+            hebrew_font_path,
+            start_page=1,
+            pdf_page_counts=[PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs],
+            index_title=f"{folder_name} (נפרד)",
+            song_start_pages=separate_song_start_pages
+        )
+        print(f"[DEBUG] Created separate index for folder '{folder_name}' with {len(folder_songs)} songs")
 
 # --- Step 3: Merge all indexes + all songs ---
 merger = PdfMerger()
@@ -862,9 +999,22 @@ if artist_songs and artist_index_pdf:
     index_infos.append((artist_ordered_pdfs, artist_ordered_page_counts, artist_index_pdf, "אומנים"))
 
 # Separate indexes
-for folder_songs, separate_index_pdf, folder_name in separate_index_infos:
-    separate_page_counts = [PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs]
-    index_infos.append((folder_songs, separate_page_counts, separate_index_pdf, f"{folder_name} (נפרד)"))
+for item in separate_index_infos:
+    if len(item) == 3 and item[2] == "Combined":
+        # This is the combined separate indexes case
+        combined_separate_infos, combined_separate_pdf, _ = item
+        # Flatten all the songs for the combined index
+        all_combined_songs = []
+        all_combined_page_counts = []
+        for folder_songs, folder_name in combined_separate_infos:
+            all_combined_songs.extend(folder_songs)
+            all_combined_page_counts.extend([PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs])
+        index_infos.append((all_combined_songs, all_combined_page_counts, combined_separate_pdf, "אינדקסים נפרדים"))
+    else:
+        # This is the original individual index case
+        folder_songs, separate_index_pdf, folder_name = item
+        separate_page_counts = [PdfReader(str(pdf)).get_num_pages() for pdf in folder_songs]
+        index_infos.append((folder_songs, separate_page_counts, separate_index_pdf, f"{folder_name} (נפרד)"))
 
 add_all_index_links_with_pypdf(output_pdf, index_pdfs, index_page_counts, index_infos, all_pdf_start_page_map)
 
