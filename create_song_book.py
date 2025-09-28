@@ -28,7 +28,7 @@ INDEX_FONT_TYPE = "David"  # Options: "Lucida", "David"
 # Font sizes for different index elements
 INDEX_TITLE_FONT_SIZE = 14      # Size for main index titles
 INDEX_HEADER_FONT_SIZE = 12     # Size for column headers ("שם השיר", "עמוד")
-INDEX_SONG_FONT_SIZE = 14       # Size for song entries (reduced for 2-column layout)
+INDEX_SONG_FONT_SIZE = 13       # Size for song entries (reduced for 2-column layout)
 SEPARATE_INDEX_FONT_SIZE_RATIO = 1  # Ratio for separate index font size (multiplied by INDEX_SONG_FONT_SIZE)
 
 # --- Constants ---
