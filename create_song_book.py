@@ -27,8 +27,8 @@ INDEX_FONT_TYPE = "David"  # Options: "Lucida", "David"
 
 # Font sizes for different index elements
 INDEX_TITLE_FONT_SIZE = 16      # Size for main index titles
-INDEX_HEADER_FONT_SIZE = 16     # Size for column headers ("שם השיר", "עמוד")
-INDEX_SONG_FONT_SIZE = 14       # Size for song entries
+INDEX_HEADER_FONT_SIZE = 14     # Size for column headers ("שם השיר", "עמוד")
+INDEX_SONG_FONT_SIZE = 10       # Size for song entries (reduced for 2-column layout)
 SEPARATE_INDEX_FONT_SIZE_RATIO = 1  # Ratio for separate index font size (multiplied by INDEX_SONG_FONT_SIZE)
 
 # --- Constants ---
@@ -36,7 +36,7 @@ COL_TITLE = "שם השיר"
 COL_PAGE = "עמוד"
 INDEX_TITLE = "רגע של אור - כל השירים"
 PAGE_NUMBER_POSITION = "left"  # Options: "both", "left", "right"
-INDEX_LINE_SPACING = 0.8 * cm  # Space between song lines in the index
+INDEX_LINE_SPACING = 0.6 * cm  # Space between song lines in the index (reduced for 2-column layout)
 
 # --- Feature Flags ---
 ENABLE_SUBFOLDER_INDEX = True  # Set to True to enable subfolder indexes
@@ -203,31 +203,40 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
 
     except Exception as e:
         pdfmetrics.registerFont(TTFont("LucidaFont", str(font_path)))
-    
+
     c = canvas.Canvas(str(output_path), pagesize=A4)
     width, height = A4
-    
+
     # For separate indexes with mixed languages, try to use a more universal approach
     is_separate_index = index_title and "(נפרד)" in index_title
-    
+
     c.setFont("IndexFont", INDEX_TITLE_FONT_SIZE)
     # Use custom index title if provided, else default
     title_to_draw = reshape_hebrew(index_title) if index_title else reshape_hebrew(INDEX_TITLE)
     c.drawRightString(width - 2 * cm, height - 2 * cm, title_to_draw)
 
-    y = height - 3.5 * cm
-    # Add column headers
-    c.setFont("IndexFont", INDEX_HEADER_FONT_SIZE)
-    col_title = reshape_hebrew(COL_TITLE)
-    col_page = reshape_hebrew(COL_PAGE)
-    right_margin = width - 2 * cm
-    left_margin = 2 * cm
-    c.drawRightString(right_margin, y, col_title)
-    c.drawString(left_margin, y, col_page)
-    y -= 1.2 * cm
-    c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
+    # --- 2-Column Layout Configuration ---
+    margin_left = 1.5 * cm
+    margin_right = 1.5 * cm
+    margin_top = 4 * cm  # Space for title and headers
+    margin_bottom = 2 * cm
 
-    songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
+    # Calculate column dimensions
+    total_content_width = width - margin_left - margin_right
+    column_gap = 1 * cm
+    column_width = (total_content_width - column_gap) / 2
+
+    # Column positions
+    left_column_left = margin_left
+    left_column_right = margin_left + column_width
+    right_column_left = left_column_right + column_gap
+    right_column_right = width - margin_right
+
+    # Calculate songs per column
+    available_height = height - margin_top - margin_bottom
+    songs_per_column = int(available_height // INDEX_LINE_SPACING)
+    songs_per_page = songs_per_column * 2  # Two columns per page
+
     # --- Use song_start_pages if provided, else fallback to old logic ---
     if song_start_pages is not None:
         song_start_pages_iter = iter(song_start_pages)
@@ -235,15 +244,41 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
         page_num = start_page
         song_start_pages_iter = iter([page_num + sum(pdf_page_counts[:i]) for i in range(len(pdf_paths))])
 
-    for i, path in enumerate(pdf_paths, start=1):
-        title = path.stem  # This gives filename without extension - that's what we want
+    # Draw headers for both columns
+    def draw_headers():
+        c.setFont("IndexFont", INDEX_HEADER_FONT_SIZE)
+        col_title = reshape_hebrew(COL_TITLE)
+        col_page = reshape_hebrew(COL_PAGE)
+
+        # Left column header
+        header_y = height - 3.5 * cm
+        c.drawRightString(left_column_right, header_y, col_title)
+        c.drawString(left_column_left, header_y, col_page)
+
+        # Right column header
+        c.drawRightString(right_column_right, header_y, col_title)
+        c.drawString(right_column_left, header_y, col_page)
+
+        return header_y - 0.8 * cm  # Return starting Y position for songs
+
+    current_y = draw_headers()
+    current_column = "left"  # Start with left column
+    songs_drawn_on_page = 0
+
+    for i, path in enumerate(pdf_paths):
+        title = path.stem  # Filename without extension
         song_page = next(song_start_pages_iter)
         page_str = str(song_page)
-        
-        right_margin = width - 2 * cm
-        left_margin = 2 * cm
 
-        # For separate indexes, don't add numbering; for regular indexes, add numbering
+        # Determine which column to use
+        if current_column == "left":
+            col_left_margin = left_column_left
+            col_right_margin = left_column_right
+        else:
+            col_left_margin = right_column_left
+            col_right_margin = right_column_right
+
+        # For separate indexes, don't add numbering; for regular indexes, no numbering either
         if is_separate_index:
             # For separate indexes with mixed languages, use smaller font and process Hebrew parts
             separate_font_size = int(INDEX_SONG_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
@@ -252,11 +287,11 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
             def fix_hebrew_in_mixed_text(text):
                 import re
                 # Split text by common separators while preserving them
-                parts = re.split('( - | \- )', text)
+                parts = re.split('( - | \\- )', text)
                 processed_parts = []
 
                 for part in parts:
-                    if part in [' - ', ' \- ']:
+                    if part in [' - ', ' \\- ']:
                         processed_parts.append(part)
                     else:
                         # Check if this part contains Hebrew characters
@@ -274,66 +309,93 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
             font_name = "LucidaFont"
             font_size = separate_font_size
         else:
-            # For regular indexes, use numbering with Hebrew reshaping
-            title_str = reshape_hebrew(f"{i}. {title}")
+            # No numbering - just the song name
+            title_str = reshape_hebrew(title)
             font_name = "IndexFont"
             font_size = INDEX_SONG_FONT_SIZE
 
-        # Calculate available width for title (total width minus page number and margins)
+        # Calculate available width for title (column width minus page number and spacing)
         c.setFont(font_name, font_size)
         page_width = c.stringWidth(page_str, font_name, font_size)
-        available_width = right_margin - left_margin - page_width - 1 * cm  # Leave 1cm space between page and title
+        available_width = column_width - page_width - 1 * cm  # Leave 1cm space between page and title
 
         # Split title into multiple lines if needed
-        title_lines = split_long_text(c, title_str, font_name, font_size, available_width, right_margin, left_margin)
+        title_lines = split_long_text(c, title_str, font_name, font_size, available_width, col_right_margin, col_left_margin)
 
-        # Check if we need a new page (consider all lines needed)
+        # Check if we need a new page or column
         lines_needed = len(title_lines)
         space_needed = lines_needed * INDEX_LINE_SPACING
-        if y - space_needed < 2 * cm:
-            c.showPage()
-            c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
-            y = height - 2 * cm
+
+        # If we're at the bottom of current column
+        if current_y - space_needed < margin_bottom:
+            if current_column == "left":
+                # Move to right column
+                current_column = "right"
+                current_y = height - margin_top
+            else:
+                # Start new page
+                c.showPage()
+                current_y = draw_headers()
+                current_column = "left"
+                songs_drawn_on_page = 0
+
+        # Update column margins for current position
+        if current_column == "left":
+            col_left_margin = left_column_left
+            col_right_margin = left_column_right
+        else:
+            col_left_margin = right_column_left
+            col_right_margin = right_column_right
 
         # Draw the song entry with multiple lines
-        current_y = y
+        entry_y = current_y
         for line_idx, line in enumerate(title_lines):
             c.setFont(font_name, font_size)
 
             if line_idx == 0:
                 # First line: draw page number and line
-                c.drawString(left_margin, current_y, page_str)
-                c.drawRightString(right_margin, current_y, line)
+                c.drawString(col_left_margin, entry_y, page_str)
+                c.drawRightString(col_right_margin, entry_y, line)
 
                 # Add dots only on the first line
                 line_width = c.stringWidth(line, font_name, font_size)
-                dots_start_pos = left_margin + page_width + 0.3 * cm
-                dots_end_pos = right_margin - line_width - 0.3 * cm
+                dots_start_pos = col_left_margin + page_width + 0.2 * cm
+                dots_end_pos = col_right_margin - line_width - 0.2 * cm
 
                 if dots_end_pos > dots_start_pos:
                     num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', font_name, font_size))
                     if num_dots > 0:
                         dots_str = '.' * num_dots
-                        c.drawString(dots_start_pos, current_y, dots_str)
+                        c.drawString(dots_start_pos, entry_y, dots_str)
             else:
                 # Additional lines: only draw the text (right-aligned)
-                c.drawRightString(right_margin, current_y, line)
+                c.drawRightString(col_right_margin, entry_y, line)
 
-            current_y -= INDEX_LINE_SPACING
+            entry_y -= INDEX_LINE_SPACING
 
-        # Update y position for next entry
-        y = current_y
-        if y < 2 * cm:
-            c.showPage()
-            c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
-            y = height - 2 * cm
+        # Update position for next entry
+        current_y = entry_y
+        songs_drawn_on_page += 1
+
+        # After each song, check if we should switch columns
+        if current_column == "left" and songs_drawn_on_page % songs_per_column == 0:
+            current_column = "right"
+            current_y = height - margin_top
+        elif current_column == "right" and songs_drawn_on_page % songs_per_page == 0:
+            # Page is full, will start new page on next iteration if needed
+            pass
 
     c.save()
 
 # --- Step 2.5: Estimate index page count ---
 def estimate_index_pages(num_songs):
     height = A4[1]
-    songs_per_page = int((height - 5.5 * cm) // INDEX_LINE_SPACING)
+    # For 2-column layout
+    margin_top = 4 * cm
+    margin_bottom = 2 * cm
+    available_height = height - margin_top - margin_bottom
+    songs_per_column = int(available_height // INDEX_LINE_SPACING)
+    songs_per_page = songs_per_column * 2  # Two columns per page
     return (num_songs + songs_per_page - 1) // songs_per_page
 
 def create_combined_separate_indexes(separate_index_infos, output_path, font_path, pdf_start_page_map):
@@ -933,33 +995,73 @@ def add_all_index_links_with_pypdf(pdf_path, index_pdfs, index_page_counts, inde
     for pdf, start_page in all_pdf_start_page_map.items():
         writer.add_outline_item(pdf.stem, pdf_to_merged_position[pdf])  # 0-based
 
-    # For each index (main, subfolder, extra)
+    # For each index (main, subfolder, extra) - updated for 2-column layout
     page_offset = 0
     for idx, (pdfs, page_counts, index_path, index_title) in enumerate(index_infos):
-        songs_per_page = int((A4[1] - 5.5 * cm) // INDEX_LINE_SPACING)
-        y_start = A4[1] - 3.5 * cm - 1.2 * cm
+        # 2-column layout parameters
+        margin_left = 1.5 * cm
+        margin_right = 1.5 * cm
+        margin_top = 4 * cm
+        margin_bottom = 2 * cm
+
+        total_content_width = A4[0] - margin_left - margin_right
+        column_gap = 1 * cm
+        column_width = (total_content_width - column_gap) / 2
+
+        # Column positions
+        left_column_left = margin_left
+        left_column_right = margin_left + column_width
+        right_column_left = left_column_right + column_gap
+        right_column_right = A4[0] - margin_right
+
+        available_height = A4[1] - margin_top - margin_bottom
+        songs_per_column = int(available_height // INDEX_LINE_SPACING)
+        songs_per_page = songs_per_column * 2
+
+        y_start = A4[1] - margin_top
         song_idx = 0
+
         for page_num in range(index_page_counts[idx]):
             page = reader.pages[page_offset + page_num]
-            y = y_start  # Reset y for each page
-            for line in range(songs_per_page):
-                if song_idx >= len(pdfs):
-                    break
+
+            # Process songs for this page
+            current_column = "left"
+            y = y_start
+            songs_on_page = 0
+
+            while songs_on_page < songs_per_page and song_idx < len(pdfs):
                 song_pdf = pdfs[song_idx]
                 song_start_page = all_pdf_start_page_map[song_pdf]
-                
+
+                # Determine column positions
+                if current_column == "left":
+                    col_left_margin = left_column_left
+                    col_right_margin = left_column_right
+                else:
+                    col_left_margin = right_column_left
+                    col_right_margin = right_column_right
+
                 # Get the actual position in the merged PDF (0-based)
                 target_page = pdf_to_merged_position[song_pdf]
                 page_str = str(song_start_page)
-                page_width = 20  # fallback width
-                x1 = 2 * cm
-                y1 = y
-                x2 = x1 + page_width
-                y2 = y + INDEX_SONG_FONT_SIZE
+                page_width = 30  # Approximate width for page number
+
+                # Create clickable area for page number
+                x1 = col_left_margin
+                y1 = y - INDEX_SONG_FONT_SIZE
+                x2 = col_left_margin + page_width
+                y2 = y
                 add_link_annotation(page, (x1, y1, x2, y2), target_page)
-                
+
                 y -= INDEX_LINE_SPACING
                 song_idx += 1
+                songs_on_page += 1
+
+                # Switch columns when one column is full
+                if songs_on_page % songs_per_column == 0 and current_column == "left":
+                    current_column = "right"
+                    y = y_start
+
             writer.add_page(page)
         page_offset += index_page_counts[idx]
     # Add the rest of the pages (songs)
