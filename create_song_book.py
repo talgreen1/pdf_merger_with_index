@@ -512,6 +512,181 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
 
     c.save()
 
+def create_combined_folder_indexes(folder_index_infos, output_path, font_path, pdf_start_page_map):
+    """
+    Create a combined PDF with multiple small folder indexes on the same page when they fit.
+
+    Args:
+        folder_index_infos: List of tuples (folder_pdfs, folder_name)
+        output_path: Path for the combined output PDF
+        font_path: Path to font file
+        pdf_start_page_map: Map from PDF paths to their start pages
+    """
+    # Register fonts
+    if INDEX_FONT_TYPE == "Lucida":
+        try:
+            lucida_paths = [
+                "C:/Windows/Fonts/l_10646.ttf",
+                "/System/Library/Fonts/LucidaGrande.ttc",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+            ]
+            lucida_registered = False
+            for path in lucida_paths:
+                try:
+                    if Path(path).exists():
+                        pdfmetrics.registerFont(TTFont("IndexFont", path))
+                        lucida_registered = True
+                        break
+                except:
+                    continue
+            if not lucida_registered:
+                pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+        except Exception as e:
+            pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+    else:
+        pdfmetrics.registerFont(TTFont("IndexFont", str(font_path)))
+
+    c = canvas.Canvas(str(output_path), pagesize=A4)
+    width, height = A4
+
+    # --- 2-Column Layout Configuration ---
+    margin_left = 1.5 * cm
+    margin_right = 1.5 * cm
+    margin_top = 2 * cm  # Less space for title since we have multiple indexes
+    margin_bottom = 2 * cm
+
+    # Calculate column dimensions
+    total_content_width = width - margin_left - margin_right
+    column_gap = 1 * cm
+    column_width = (total_content_width - column_gap) / 2
+
+    # Column positions
+    left_column_left = margin_left
+    left_column_right = margin_left + column_width
+    right_column_left = left_column_right + column_gap
+    right_column_right = width - margin_right
+
+    # Calculate songs per column
+    available_height = height - margin_top - margin_bottom
+    songs_per_column = int(available_height // INDEX_LINE_SPACING)
+
+    current_y = height - margin_top
+    current_column = "right"  # Start with right column (Hebrew reading direction)
+    indexes_drawn = 0
+
+    for folder_pdfs, folder_name in folder_index_infos:
+        # Calculate space needed for this folder index (including title and headers)
+        num_songs = len(folder_pdfs)
+        lines_needed = num_songs + 3  # +3 for title, header line, and spacing
+        space_needed = lines_needed * INDEX_LINE_SPACING + 1 * cm  # Extra space for title
+
+        # Determine which column to use
+        if current_column == "right":
+            col_left_margin = right_column_left
+            col_right_margin = right_column_right
+        else:
+            col_left_margin = left_column_left
+            col_right_margin = left_column_right
+
+        # Check if this index fits in the current column
+        if current_y - space_needed < margin_bottom:
+            if current_column == "right":
+                # Move to left column
+                current_column = "left"
+                current_y = height - margin_top
+                col_left_margin = left_column_left
+                col_right_margin = left_column_right
+            else:
+                # Start new page
+                c.showPage()
+                current_y = height - margin_top
+                current_column = "right"
+                col_left_margin = right_column_left
+                col_right_margin = right_column_right
+
+        # Draw index title
+        c.setFont("IndexFont", INDEX_TITLE_FONT_SIZE)
+        title_to_draw = reshape_hebrew(folder_name)
+        c.drawRightString(col_right_margin, current_y, title_to_draw)
+        current_y -= 1.2 * cm
+
+        # Draw headers
+        c.setFont("IndexFont", INDEX_HEADER_FONT_SIZE)
+        col_title = reshape_hebrew(COL_TITLE)
+        col_page = reshape_hebrew(COL_PAGE)
+        c.drawRightString(col_right_margin, current_y, col_title)
+        c.drawString(col_left_margin, current_y, col_page)
+        current_y -= 0.8 * cm
+
+        # Draw songs
+        c.setFont("IndexFont", INDEX_SONG_FONT_SIZE)
+        for pdf_path in folder_pdfs:
+            title = pdf_path.stem
+            title_str = reshape_hebrew(title)
+            song_page = pdf_start_page_map[pdf_path]
+            page_str = str(song_page)
+
+            # Calculate available width for title (column width minus page number and spacing)
+            page_width = c.stringWidth(page_str, "IndexFont", INDEX_SONG_FONT_SIZE)
+            available_width = column_width - page_width - 1 * cm
+
+            # Split title into multiple lines if needed
+            title_lines = split_long_text(c, title_str, "IndexFont", INDEX_SONG_FONT_SIZE, available_width, col_right_margin, col_left_margin)
+
+            # Draw the song entry
+            entry_y = current_y
+            for line_idx, line in enumerate(title_lines):
+                if line_idx == 0:
+                    # First line: draw page number and line
+                    c.drawString(col_left_margin, entry_y, page_str)
+                    c.drawRightString(col_right_margin, entry_y, line)
+
+                    # Add dots only on the first line
+                    line_width = c.stringWidth(line, "IndexFont", INDEX_SONG_FONT_SIZE)
+                    dots_start_pos = col_left_margin + page_width + 0.2 * cm
+                    dots_end_pos = col_right_margin - line_width - 0.2 * cm
+
+                    if dots_end_pos > dots_start_pos:
+                        num_dots = int((dots_end_pos - dots_start_pos) // c.stringWidth('.', "IndexFont", INDEX_SONG_FONT_SIZE))
+                        if num_dots > 0:
+                            dots_str = '.' * num_dots
+                            c.drawString(dots_start_pos, entry_y, dots_str)
+                else:
+                    # Additional lines: only draw the text (right-aligned)
+                    c.drawRightString(col_right_margin, entry_y, line)
+
+                entry_y -= INDEX_LINE_SPACING
+
+            current_y = entry_y
+
+        # Add spacing between indexes
+        current_y -= 1 * cm
+        indexes_drawn += 1
+
+        # After drawing an index, check if we should switch to the other column
+        # Only switch if there's another index to draw and it might fit
+        remaining_indexes = len(folder_index_infos) - indexes_drawn
+        if remaining_indexes > 0 and current_column == "right":
+            # Estimate if next index might fit in left column
+            if remaining_indexes > 0:
+                next_folder_pdfs, next_folder_name = folder_index_infos[indexes_drawn]
+                next_num_songs = len(next_folder_pdfs)
+                next_space_needed = (next_num_songs + 3) * INDEX_LINE_SPACING + 1 * cm
+
+                # If next index is small enough and we're still in right column, continue in right
+                # Otherwise, consider moving to left column for better balance
+                remaining_space = current_y - margin_bottom
+                if next_space_needed <= remaining_space and current_column == "right":
+                    # Continue in right column
+                    pass
+                else:
+                    # Move to left column for better layout
+                    if current_column == "right":
+                        current_column = "left"
+                        current_y = height - margin_top
+
+    c.save()
+
 def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_start_page_map=None):
     """
     Create an artist-based index PDF with configurable font support.
@@ -798,14 +973,44 @@ if ENABLE_SUBFOLDER_INDEX:
         folder_name = subfolder.name
         subfolder_infos.append((subfolder_pdfs, subfolder_page_counts, subfolder_index_pdf, folder_name))
 
-# Calculate start pages for each index
-current_start_page = sum(index_page_counts) + 1  # Songs start after all indexes
-subfolder_index_pages = []
-for pdfs, page_counts, index_path, folder_name in subfolder_infos:
-    num_pages = estimate_index_pages(len(pdfs))
-    subfolder_index_pages.append(num_pages)
-    index_pdfs.append(index_path)
-    index_page_counts.append(num_pages)
+# --- Process subfolder indexes: combine small ones, keep large ones separate ---
+subfolder_combined_infos = []
+large_subfolder_infos = []
+songs_per_column = int((A4[1] - 4 * cm - 2 * cm) // INDEX_LINE_SPACING)  # Available space per column
+
+if subfolder_infos:
+    print(f"[DEBUG] Processing {len(subfolder_infos)} subfolder indexes")
+
+    # Separate small and large indexes
+    for pdfs, page_counts, index_path, folder_name in subfolder_infos:
+        num_songs = len(pdfs)
+        # Consider an index "small" if it has reasonable number of songs that can share a page
+        lines_needed = num_songs + 3  # +3 for title, header, and spacing
+        # Allow indexes with up to 50 songs to be combined (most folder indexes should be combinable)
+        if num_songs <= 50:  # Much more generous threshold
+            print(f"[DEBUG] Small subfolder index: {folder_name} with {num_songs} songs (will be combined)")
+            subfolder_combined_infos.append((pdfs, folder_name))
+        else:
+            print(f"[DEBUG] Large subfolder index: {folder_name} with {num_songs} songs (needs full page)")
+            large_subfolder_infos.append((pdfs, page_counts, index_path, folder_name))
+
+    # Create combined PDF for small subfolder indexes if any
+    if subfolder_combined_infos:
+        combined_subfolder_pdf = output_folder / "index_combined_folders_temp.pdf"
+        # Estimate pages for combined subfolder indexes
+        total_small_songs = sum(len(pdfs) for pdfs, _ in subfolder_combined_infos)
+        # More accurate estimate: consider titles and spacing for multiple indexes
+        estimated_combined_pages = max(1, (len(subfolder_combined_infos) * 4 + total_small_songs) // (songs_per_column * 2))
+        index_pdfs.append(combined_subfolder_pdf)
+        index_page_counts.append(estimated_combined_pages)
+        print(f"[DEBUG] Will create combined subfolder index with {len(subfolder_combined_infos)} small indexes, estimated {estimated_combined_pages} pages")
+
+    # Add large subfolder indexes individually
+    for pdfs, page_counts, index_path, folder_name in large_subfolder_infos:
+        num_pages = estimate_index_pages(len(pdfs))
+        index_pdfs.append(index_path)
+        index_page_counts.append(num_pages)
+        print(f"[DEBUG] Added large subfolder index: {folder_name}, estimated {num_pages} pages")
 
 # Add artist index as the last regular index (if there are songs with artists)
 artist_index_pdf = None
@@ -891,8 +1096,13 @@ create_index(
     song_start_pages=main_index_song_start_pages
 )
 
-# Subfolder indexes
-for pdfs, page_counts, index_path, folder_name in subfolder_infos:
+# Create combined subfolder index if there are small indexes
+if subfolder_combined_infos:
+    print(f"[DEBUG] Creating combined subfolder index with {len(subfolder_combined_infos)} small indexes")
+    create_combined_folder_indexes(subfolder_combined_infos, combined_subfolder_pdf, hebrew_font_path, pdf_start_page_map)
+
+# Create individual large subfolder indexes
+for pdfs, page_counts, index_path, folder_name in large_subfolder_infos:
     subfolder_song_start_pages = [pdf_start_page_map[p] for p in pdfs]
     create_index(
         pdfs,
@@ -903,6 +1113,7 @@ for pdfs, page_counts, index_path, folder_name in subfolder_infos:
         index_title=folder_name,
         song_start_pages=subfolder_song_start_pages
     )
+    print(f"[DEBUG] Created large subfolder index: {folder_name}")
 
 # --- Extra indexes: Regenerate with correct song_start_pages ---
 for all_pdfs, index_pdf_path, index_title in extra_index_infos:
@@ -1141,9 +1352,21 @@ def add_all_index_links_with_pypdf(pdf_path, index_pdfs, index_page_counts, inde
 index_infos = []
 # Main index
 index_infos.append((pdf_files, pdf_page_counts, main_index_pdf, INDEX_TITLE))
-# Subfolder indexes
-for i, (pdfs, page_counts, index_path, folder_name) in enumerate(subfolder_infos):
+# Combined subfolder indexes
+if subfolder_combined_infos:
+    # Flatten all the songs for the combined folder index
+    all_combined_folder_songs = []
+    all_combined_folder_page_counts = []
+    for folder_pdfs, folder_name in subfolder_combined_infos:
+        all_combined_folder_songs.extend(folder_pdfs)
+        all_combined_folder_page_counts.extend([PdfReader(str(pdf)).get_num_pages() for pdf in folder_pdfs])
+    index_infos.append((all_combined_folder_songs, all_combined_folder_page_counts, combined_subfolder_pdf, "Combined Folder Indexes"))
+    print(f"[DEBUG] Added combined folder index info with {len(all_combined_folder_songs)} songs")
+
+# Large individual subfolder indexes
+for pdfs, page_counts, index_path, folder_name in large_subfolder_infos:
     index_infos.append((pdfs, page_counts, index_path, folder_name))
+    print(f"[DEBUG] Added individual folder index info: {folder_name}")
 # Extra indexes
 for all_pdfs, index_pdf_path, index_title in extra_index_infos:
     all_pdfs_sorted = sorted(all_pdfs, key=lambda p: p.stem.lower())
