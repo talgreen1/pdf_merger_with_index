@@ -450,21 +450,23 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
 
     current_y = height - margin_top
     indexes_on_current_page = 0
-    max_indexes_per_page = 3  # Conservative estimate
+    max_indexes_per_page = 8  # Allow more indexes per page
 
     for folder_songs, folder_name, use_columns in separate_index_infos:
         num_songs = len(folder_songs)
 
-        # Calculate space needed for this index
+        # Calculate space needed for this index (more conservative estimate)
         if use_columns and num_songs > 1:
             # For column layout: need space for title, headers, and songs in 2 columns
             songs_per_column = (num_songs + 1) // 2  # Ceil division
-            lines_needed = songs_per_column + 3  # +3 for title and headers and spacing
+            # Add extra space for potential multi-line entries (estimate 1.5x)
+            lines_needed = int(songs_per_column * 1.5) + 3  # +3 for title and headers
         else:
             # For regular layout: all songs in single column
-            lines_needed = num_songs + 3  # +3 for title and headers and spacing
+            # Add extra space for potential multi-line entries (estimate 1.3x)
+            lines_needed = int(num_songs * 1.3) + 3  # +3 for title and headers
 
-        space_needed = lines_needed * INDEX_LINE_SPACING + 2 * cm  # Extra space for title
+        space_needed = lines_needed * INDEX_LINE_SPACING + 2.5 * cm  # Extra space for title and margins
 
         # Check if we need a new page
         if indexes_on_current_page > 0 and (current_y - space_needed < margin_bottom or indexes_on_current_page >= max_indexes_per_page):
@@ -532,6 +534,10 @@ def _draw_separate_index_with_columns(c, folder_songs, folder_name, pdf_start_pa
 
     songs_per_column = (len(folder_songs) + 1) // 2
 
+    # Track actual Y positions used in each column
+    right_column_y = current_y
+    left_column_y = current_y
+
     # Start with right column
     for i, pdf_path in enumerate(folder_songs):
         # Determine column position
@@ -539,12 +545,12 @@ def _draw_separate_index_with_columns(c, folder_songs, folder_name, pdf_start_pa
             # Right column
             col_left = right_col_left
             col_right = right_col_right
-            song_y = current_y - (i * INDEX_LINE_SPACING)
+            song_y = right_column_y
         else:
             # Left column
             col_left = left_col_left
             col_right = left_col_right
-            song_y = current_y - ((i - songs_per_column) * INDEX_LINE_SPACING)
+            song_y = left_column_y
 
         title = pdf_path.stem
         song_page = pdf_start_page_map[pdf_path]
@@ -581,8 +587,14 @@ def _draw_separate_index_with_columns(c, folder_songs, folder_name, pdf_start_pa
                 c.drawRightString(col_right, line_y, line)
             line_y -= INDEX_LINE_SPACING
 
-    # Return Y position after drawing all songs
-    return current_y - (songs_per_column * INDEX_LINE_SPACING)
+        # Update the column Y position for next song
+        if i < songs_per_column:
+            right_column_y = line_y  # Update right column position
+        else:
+            left_column_y = line_y   # Update left column position
+
+    # Return the lowest Y position used
+    return min(right_column_y, left_column_y)
 
 def _draw_separate_index_regular(c, folder_songs, folder_name, pdf_start_page_map,
                                current_y, margin_left, margin_right, width, available_width):
