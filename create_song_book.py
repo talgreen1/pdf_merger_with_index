@@ -41,6 +41,7 @@ INDEX_LINE_SPACING = 0.6 * cm  # Space between song lines in the index (reduced 
 # --- Feature Flags ---
 ENABLE_SUBFOLDER_INDEX = True  # Set to True to enable subfolder indexes
 MULTIPLE_INDEXES_PER_PAGE = True  # Set to True to put multiple separate indexes on the same page if they fit
+SEPARATE_INDEX_SHOW_HEADERS = False  # Set to True to show column headers ("שם השיר", "עמוד") in separate indexes
 
 # --- Helpers ---
 def reshape_hebrew(text):
@@ -456,15 +457,17 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
         num_songs = len(folder_songs)
 
         # Calculate space needed for this index (more conservative estimate)
+        header_lines = 1 if SEPARATE_INDEX_SHOW_HEADERS else 0  # Account for optional headers
+
         if use_columns and num_songs > 1:
-            # For column layout: need space for title, headers, and songs in 2 columns
+            # For column layout: need space for title, optional headers, and songs in 2 columns
             songs_per_column = (num_songs + 1) // 2  # Ceil division
             # Add extra space for potential multi-line entries (estimate 1.5x)
-            lines_needed = int(songs_per_column * 1.5) + 3  # +3 for title and headers
+            lines_needed = int(songs_per_column * 1.5) + 2 + header_lines  # +2 for title spacing
         else:
             # For regular layout: all songs in single column
             # Add extra space for potential multi-line entries (estimate 1.3x)
-            lines_needed = int(num_songs * 1.3) + 3  # +3 for title and headers
+            lines_needed = int(num_songs * 1.3) + 2 + header_lines  # +2 for title spacing
 
         space_needed = lines_needed * INDEX_LINE_SPACING + 2.5 * cm  # Extra space for title and margins
 
@@ -504,11 +507,6 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
 def _draw_separate_index_with_columns(c, folder_songs, folder_name, pdf_start_page_map,
                                     current_y, margin_left, margin_right, available_width):
     """Draw a separate index using internal 2-column layout."""
-    # Headers for both columns
-    c.setFont("LucidaFont", INDEX_HEADER_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
-    col_title = reshape_hebrew(COL_TITLE)
-    col_page = reshape_hebrew(COL_PAGE)
-
     # Calculate column dimensions
     column_gap = 1 * cm
     column_width = (available_width - column_gap) / 2
@@ -521,12 +519,18 @@ def _draw_separate_index_with_columns(c, folder_songs, folder_name, pdf_start_pa
     right_col_left = left_col_right + column_gap
     right_col_right = margin_left + available_width
 
-    # Draw headers for both columns
-    c.drawRightString(right_col_right, current_y, col_title)  # Right column header
-    c.drawString(right_col_left, current_y, col_page)
-    c.drawRightString(left_col_right, current_y, col_title)   # Left column header
-    c.drawString(left_col_left, current_y, col_page)
-    current_y -= 1.2 * cm
+    # Conditionally draw headers for both columns
+    if SEPARATE_INDEX_SHOW_HEADERS:
+        c.setFont("LucidaFont", INDEX_HEADER_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
+        col_title = reshape_hebrew(COL_TITLE)
+        col_page = reshape_hebrew(COL_PAGE)
+
+        # Draw headers for both columns
+        c.drawRightString(right_col_right, current_y, col_title)  # Right column header
+        c.drawString(right_col_left, current_y, col_page)
+        c.drawRightString(left_col_right, current_y, col_title)   # Left column header
+        c.drawString(left_col_left, current_y, col_page)
+        current_y -= 1.2 * cm
 
     # Draw songs in 2 columns (right column first, then left)
     font_size = INDEX_SONG_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO
@@ -599,13 +603,14 @@ def _draw_separate_index_with_columns(c, folder_songs, folder_name, pdf_start_pa
 def _draw_separate_index_regular(c, folder_songs, folder_name, pdf_start_page_map,
                                current_y, margin_left, margin_right, width, available_width):
     """Draw a separate index using regular single-column layout."""
-    # Headers
-    c.setFont("LucidaFont", INDEX_HEADER_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
-    col_title = reshape_hebrew(COL_TITLE)
-    col_page = reshape_hebrew(COL_PAGE)
-    c.drawRightString(width - margin_right, current_y, col_title)
-    c.drawString(margin_left, current_y, col_page)
-    current_y -= 1.2 * cm
+    # Conditionally draw headers
+    if SEPARATE_INDEX_SHOW_HEADERS:
+        c.setFont("LucidaFont", INDEX_HEADER_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
+        col_title = reshape_hebrew(COL_TITLE)
+        col_page = reshape_hebrew(COL_PAGE)
+        c.drawRightString(width - margin_right, current_y, col_title)
+        c.drawString(margin_left, current_y, col_page)
+        current_y -= 1.2 * cm
 
     # Songs
     font_size = INDEX_SONG_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO
