@@ -469,7 +469,7 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
             # Add extra space for potential multi-line entries (estimate 1.3x)
             lines_needed = int(num_songs * 1.3) + 2 + header_lines  # +2 for title spacing
 
-        space_needed = lines_needed * INDEX_LINE_SPACING + 2.5 * cm  # Extra space for title and margins
+        space_needed = lines_needed * INDEX_LINE_SPACING + 1.8 * cm  # Reduced extra space for title and margins
 
         # Check if we need a new page
         if indexes_on_current_page > 0 and (current_y - space_needed < margin_bottom or indexes_on_current_page >= max_indexes_per_page):
@@ -484,7 +484,7 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
         c.setFont("LucidaFont", INDEX_TITLE_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
         title_to_draw = reshape_hebrew(index_title)
         c.drawRightString(width - margin_right, current_y, title_to_draw)
-        current_y -= 1.5 * cm
+        current_y -= 0.8 * cm  # Reduced from 1.5cm to 0.8cm
 
         if use_columns and num_songs > 1:
             # Draw with internal 2-column layout
@@ -499,7 +499,7 @@ def create_combined_separate_indexes(separate_index_infos, output_path, font_pat
                 current_y, margin_left, margin_right, width, available_width
             )
 
-        current_y -= 1 * cm  # Extra space between indexes
+        current_y -= 0.5 * cm  # Reduced space between indexes (from 1cm to 0.5cm)
         indexes_on_current_page += 1
 
     c.save()
