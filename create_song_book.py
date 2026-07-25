@@ -9,10 +9,11 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 
 # --- Config ---
-pdf_folder = Path("c:/temp/songs/pdfs/")  # Folder for input PDF files
-output_folder = Path("c:/temp/songs/Res/")  # Folder for final output PDF
+pdf_folder = Path("c:/temp/book/pdfs/")  # Folder for input PDF files
+output_folder = Path("c:/temp/book/Res/")  # Folder for final output PDF
 output_pdf = output_folder / "רגע של אור - שירים.pdf"
 index_pdf = output_folder / "index_temp.pdf"
+output_docx = output_pdf.with_suffix(".docx")
 output_folder.mkdir(parents=True, exist_ok=True)
 hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the project directory
 
@@ -1579,6 +1580,20 @@ for item in separate_index_infos:
 
 add_all_index_links_with_pypdf(output_pdf, index_pdfs, index_page_counts, index_infos, all_pdf_start_page_map)
 
+# --- Step 6: Create image-based Word output with bookmark-backed links ---
+from word_songbook import create_word_songbook
+
+create_word_songbook(
+    output_path=output_docx,
+    regular_pdfs=pdf_files,
+    separate_folder_songs=separate_folder_songs,
+    extra_index_infos=extra_index_infos,
+    subfolder_infos=subfolder_infos,
+    artist_songs=artist_songs,
+    song_start_pages=all_pdf_start_page_map,
+    main_index_title=INDEX_TITLE,
+)
+
 # --- Cleanup ---
 for idx_pdf in index_pdfs:
     if idx_pdf.exists():
@@ -1591,4 +1606,5 @@ for temp_file in subfolder_temp_files:
 if temp_merged_path.exists():
     temp_merged_path.unlink()
 
-print(f"\u2705 Done! Songbook with Hebrew & page numbers: {output_pdf}")
+print(f"Done! Songbook with Hebrew & page numbers: {output_pdf}")
+print(f"Done! Word songbook with bookmark links: {output_docx}")

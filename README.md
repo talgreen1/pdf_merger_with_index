@@ -14,6 +14,7 @@ This Python script automates the creation of a songbook PDF with Hebrew support,
   - Optional subfolder-specific indexes
 - **Alphabetical Sorting:** Songs are sorted alphabetically by filename (case-insensitive)
 - **Clickable Links:** Index entries are clickable and link directly to the corresponding song pages
+- **Word Output:** Also creates an image-based `.docx` whose index links use stable Word bookmarks
 - **Page Numbering:** Adds page numbers to all song pages
 - **Smart Page Calculation:** Automatically estimates and adjusts for index page counts
 - **Artist Name Extraction:** Automatically extracts artist information from filenames following the pattern "Song Name - Artist Name.pdf"
@@ -26,6 +27,8 @@ This Python script automates the creation of a songbook PDF with Hebrew support,
   - `reportlab` - PDF generation
   - `arabic-reshaper` - Hebrew text reshaping
   - `python-bidi` - Bidirectional text support
+  - `python-docx` - Word document generation and internal bookmarks
+  - `PyMuPDF` - High-quality conversion of source PDF pages to Word images
 - `david.ttf` - Hebrew font file (must be in the project directory)
 
 ## Configuration
@@ -73,6 +76,11 @@ output_pdf = output_folder / "רגע של אור - שירים.pdf"  # Output fil
    ```
 
 ## Output Structure
+
+Each run creates both the original PDF songbook and a Word songbook with the
+same base filename. In Word, use Ctrl+Click on an index entry to jump directly
+to the first page of that song. These links target bookmarks rather than
+calculated document page numbers, so pagination changes do not break them.
 
 The script generates a single PDF with the following structure:
 
