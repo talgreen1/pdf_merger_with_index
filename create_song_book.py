@@ -40,6 +40,22 @@ PAGE_NUMBER_POSITION = "left"  # Options: "both", "left", "right"
 INDEX_LINE_SPACING = 0.6 * cm  # Space between song lines in the index (reduced for 2-column layout)
 SEPARATE_INDEX_SPACING = 0.7 * cm  # Space between separate indexes on the same page
 
+# Word index layout. Reorder these titles to control the DOCX index order.
+# Any dynamically discovered index not listed here is appended at the end.
+WORD_INDEX_ENTRY_SPACING_PT = 1.5
+WORD_INDEX_ORDER = [
+    INDEX_TITLE,
+    "שירים יווניים",
+    "שירים שמחים",
+    "שירים שקטים",
+    "אומנים",
+    "שירי חגים",
+    "שירים באנגלית",
+    "שירים ספרדיים",
+    "שירים צרפתיים",
+    "שירים רוסיים",
+]
+
 # --- Feature Flags ---
 ENABLE_SUBFOLDER_INDEX = True  # Set to True to enable subfolder indexes
 MULTIPLE_INDEXES_PER_PAGE = True  # Set to True to put multiple separate indexes on the same page if they fit
@@ -1592,6 +1608,8 @@ create_word_songbook(
     artist_songs=artist_songs,
     song_start_pages=all_pdf_start_page_map,
     main_index_title=INDEX_TITLE,
+    index_entry_spacing_pt=WORD_INDEX_ENTRY_SPACING_PT,
+    index_order=WORD_INDEX_ORDER,
 )
 
 # --- Cleanup ---
