@@ -27,15 +27,6 @@ def _set_run_font(run, size=11, bold=False, color=None):
         run.font.color.rgb = color
 
 
-def _set_rtl(paragraph):
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    paragraph.paragraph_format.space_before = Pt(0)
-    paragraph.paragraph_format.space_after = Pt(0)
-    p_pr = paragraph._p.get_or_add_pPr()
-    if p_pr.find(qn("w:bidi")) is None:
-        p_pr.append(OxmlElement("w:bidi"))
-
-
 def _add_bookmark(paragraph, name, bookmark_id):
     bookmark_start = OxmlElement("w:bookmarkStart")
     bookmark_start.set(qn("w:id"), str(bookmark_id))
@@ -109,10 +100,17 @@ def _remove_table_borders(table):
         borders.append(element)
 
 
-def _add_index_entry(cell, label, page_number, anchor):
+def _add_index_entry(cell, label, page_number, anchor, spacing_after_pt):
     paragraph = cell.paragraphs[0]
-    _set_rtl(paragraph)
-    paragraph.paragraph_format.space_after = Pt(0)
+    # In Word, paragraph-level bidi mirrors left/right justification. Using
+    # LEFT here therefore produces physical right alignment while preserving
+    # the desired RTL visual order: title ... page number.
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    paragraph_properties = paragraph._p.get_or_add_pPr()
+    if paragraph_properties.find(qn("w:bidi")) is None:
+        paragraph_properties.append(OxmlElement("w:bidi"))
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(spacing_after_pt)
     paragraph.paragraph_format.line_spacing = 1.0
     _add_internal_link(paragraph, label, anchor)
     separator = paragraph.add_run("  ···  ")
@@ -126,6 +124,7 @@ def _add_index_page(
     entries,
     bookmark_names,
     page_numbers,
+    index_entry_spacing_pt,
     is_first=False,
 ):
     title_paragraph = document.add_paragraph()
@@ -161,6 +160,7 @@ def _add_index_page(
                 label,
                 page_numbers[pdf_path],
                 bookmark_names[pdf_path],
+                index_entry_spacing_pt,
             )
         if row_index < len(right_entries):
             label, pdf_path = right_entries[row_index]
@@ -169,6 +169,7 @@ def _add_index_page(
                 label,
                 page_numbers[pdf_path],
                 bookmark_names[pdf_path],
+                index_entry_spacing_pt,
             )
 
 
@@ -270,6 +271,40 @@ def _normal_entries(pdf_paths):
     return [(path.stem, path) for path in pdf_paths]
 
 
+def _order_indexes(indexes, index_order, page_break_marker=None):
+    """Order indexes and preserve explicit page-break markers."""
+    if not index_order:
+        return indexes
+
+    remaining = list(indexes)
+    ordered = []
+    for requested_title in index_order:
+        if (
+            page_break_marker is not None
+            and requested_title == page_break_marker
+        ):
+            ordered.append(None)
+            continue
+        for index_number, (title, entries) in enumerate(remaining):
+            if title == requested_title:
+                ordered.append(remaining.pop(index_number))
+                break
+    ordered.extend(remaining)
+
+    # Ignore markers that would create leading, trailing, or duplicate blank
+    # pages while retaining every marker placed between actual indexes.
+    normalized = []
+    for item in ordered:
+        if item is None:
+            if normalized and normalized[-1] is not None:
+                normalized.append(None)
+        else:
+            normalized.append(item)
+    if normalized and normalized[-1] is None:
+        normalized.pop()
+    return normalized
+
+
 def create_word_songbook(
     output_path,
     regular_pdfs,
@@ -279,6 +314,10 @@ def create_word_songbook(
     artist_songs,
     song_start_pages,
     main_index_title,
+    index_entry_spacing_pt=1.5,
+    include_main_index=True,
+    index_order=None,
+    index_page_break_marker=None,
 ):
     """Create an image-based DOCX with bookmark-backed index links."""
     output_path = Path(output_path)
@@ -306,7 +345,9 @@ def create_word_songbook(
     normal_style.paragraph_format.space_after = Pt(4)
     normal_style.paragraph_format.line_spacing = 1.25
 
-    indexes = [(main_index_title, _normal_entries(regular_pdfs))]
+    indexes = []
+    if include_main_index:
+        indexes.append((main_index_title, _normal_entries(regular_pdfs)))
     for pdfs, _index_path, index_title in extra_index_infos:
         sorted_pdfs = sorted(pdfs, key=lambda path: path.stem.lower())
         indexes.append((index_title, _normal_entries(sorted_pdfs)))
@@ -325,19 +366,29 @@ def create_word_songbook(
     for folder, folder_songs in separate_folder_songs.items():
         indexes.append((folder.name, _normal_entries(folder_songs)))
 
-    for index_number, (title, entries) in enumerate(indexes):
-        # Keep the full main index on its own page. All later indexes flow
-        # naturally so multiple small indexes can share a page.
-        if index_number == 1:
+    index_items = _order_indexes(
+        indexes,
+        index_order,
+        page_break_marker=index_page_break_marker,
+    )
+
+    index_number = 0
+    for item in index_items:
+        if item is None:
             document.add_page_break()
+            continue
+
+        title, entries = item
         _add_index_page(
             document,
             title,
             entries,
             bookmark_names,
             song_start_pages,
+            index_entry_spacing_pt,
             is_first=index_number == 0,
         )
+        index_number += 1
 
     song_section = document.add_section(WD_SECTION.NEW_PAGE)
     _configure_song_section(song_section)
