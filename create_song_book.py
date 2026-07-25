@@ -48,9 +48,9 @@ WORD_INDEX_ENTRY_SPACING_PT = 5
 WORD_INCLUDE_MAIN_INDEX = True
 WORD_INDEX_PAGE_BREAK = "__PAGE_BREAK__"
 WORD_INDEX_ORDER = [
+    "הפופולרים",
     INDEX_TITLE,
     WORD_INDEX_PAGE_BREAK,
-    "הפופולרים",
     "שירים שמחים",
     "שירים שקטים",
 WORD_INDEX_PAGE_BREAK,
