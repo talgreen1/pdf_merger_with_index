@@ -19,6 +19,7 @@ hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the 
 
 # --- Add this line: Configurable extra index file name ---
 EXTRA_INDEX_FILENAME = "more.txt"  # Can be changed as needed
+POPULAR_FOLDER_NAME = "הפופולרים"  # Songs in this folder appear first after all indexes
 
 # --- Font Configuration ---
 # Available font options for non-separate indexes:
@@ -47,9 +48,9 @@ WORD_INDEX_ENTRY_SPACING_PT = 5
 WORD_INCLUDE_MAIN_INDEX = True
 WORD_INDEX_PAGE_BREAK = "__PAGE_BREAK__"
 WORD_INDEX_ORDER = [
+    "הפופולרים",
     INDEX_TITLE,
     WORD_INDEX_PAGE_BREAK,
-    "הפופולרים",
     "שירים שמחים",
     "שירים שקטים",
 WORD_INDEX_PAGE_BREAK,
@@ -186,9 +187,54 @@ for folder in pdf_folder.rglob("*/"):
 
 # Filter out separate songs from main collection
 pdf_files = [p for p in all_pdf_files if p not in separate_songs_set]
+popular_folder_pdfs = [
+    p
+    for p in all_pdf_files
+    if POPULAR_FOLDER_NAME in p.relative_to(pdf_folder).parts[:-1]
+]
+
+# A folder can also define a virtual collection through more.txt. Include
+# those referenced PDFs even when the folder itself contains no PDF files.
+all_pdf_name_to_path = {p.name: p for p in all_pdf_files}
+popular_listed_pdfs = []
+for popular_folder in [
+    folder
+    for folder in pdf_folder.rglob("*")
+    if folder.is_dir() and folder.name == POPULAR_FOLDER_NAME
+]:
+    popular_list_file = popular_folder / EXTRA_INDEX_FILENAME
+    if popular_list_file.exists():
+        with popular_list_file.open("r", encoding="utf-8-sig") as f:
+            popular_song_names = [line.strip() for line in f if line.strip()]
+        popular_listed_pdfs.extend(
+            all_pdf_name_to_path[name]
+            for name in popular_song_names
+            if name in all_pdf_name_to_path
+        )
+
+popular_pdfs = sorted(
+    set(popular_folder_pdfs + popular_listed_pdfs),
+    key=lambda p: p.stem.lower(),
+)
+
+popular_pdf_set = set(popular_pdfs)
 pdf_page_counts = [PdfReader(str(pdf)).get_num_pages() for pdf in pdf_files]
 
+# This is the exact order used after the indexes. It also handles a popular
+# folder marked with .separate without duplicating any songs.
+separate_pdfs = [
+    pdf
+    for folder_songs in separate_folder_songs.values()
+    for pdf in folder_songs
+]
+song_merge_order = (
+    popular_pdfs
+    + [p for p in pdf_files if p not in popular_pdf_set]
+    + [p for p in separate_pdfs if p not in popular_pdf_set]
+)
+
 print(f"[DEBUG] Total PDFs: {len(all_pdf_files)}, Regular PDFs: {len(pdf_files)}, Separate PDFs: {len(separate_songs_set)}")
+print(f"[DEBUG] Popular PDFs placed first: {len(popular_pdfs)}")
 
 # --- Step 2: Create index PDF with Hebrew support and page numbers ---
 def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_counts=None, index_title=None, song_start_pages=None):
@@ -1262,21 +1308,21 @@ for i, (pdfs, page_counts, index_path, folder_name) in enumerate(subfolder_infos
 pdf_start_page_map = {}
 cum_page = 1
 
-# Regular songs first
-for pdf, page_count in zip(pdf_files, pdf_page_counts):
-    pdf_start_page_map[pdf] = cum_page
-    cum_page += page_count
+# Use the final merge order so popular songs receive the first page numbers,
+# including when the popular folder is marked with .separate.
+all_pdf_start_page_map = {}
+for pdf in song_merge_order:
+    all_pdf_start_page_map[pdf] = cum_page
+    cum_page += PdfReader(str(pdf)).get_num_pages()
 
-# Separate songs after regular songs
-separate_pdf_start_page_map = {}
-for folder, folder_songs in separate_folder_songs.items():
-    for pdf in folder_songs:
-        page_count = PdfReader(str(pdf)).get_num_pages()
-        separate_pdf_start_page_map[pdf] = cum_page
-        cum_page += page_count
-
-# Combine both maps for easier access
-all_pdf_start_page_map = {**pdf_start_page_map, **separate_pdf_start_page_map}
+pdf_start_page_map = {
+    pdf: all_pdf_start_page_map[pdf]
+    for pdf in pdf_files
+}
+separate_pdf_start_page_map = {
+    pdf: all_pdf_start_page_map[pdf]
+    for pdf in separate_pdfs
+}
 
 # --- Regenerate all indexes using the page map ---
 # Main index
@@ -1362,13 +1408,9 @@ merger = PdfWriter()
 # Add all index PDFs
 for idx_pdf in index_pdfs:
     merger.append(str(idx_pdf))
-# Add regular songs
-for pdf in pdf_files:
+# Add songs in the same order used to calculate index page numbers.
+for pdf in song_merge_order:
     merger.append(str(pdf))
-# Add separate songs at the end
-for folder, folder_songs in separate_folder_songs.items():
-    for pdf in folder_songs:
-        merger.append(str(pdf))
 
 temp_merged_path = output_folder / "temp_merged.pdf"
 merger.write(str(temp_merged_path))
@@ -1445,21 +1487,13 @@ def add_all_index_links_with_pypdf(pdf_path, index_pdfs, index_page_counts, inde
     total_index_pages = sum(index_page_counts)
     
     # Create a mapping from PDF path to its actual position in the merged PDF
-    # In the merged PDF: [indexes][regular_songs][separate_songs]...
+    # In the merged PDF: [indexes][popular_songs][remaining_songs]...
     pdf_to_merged_position = {}
     current_position = total_index_pages  # Songs start after indexes
     
-    # Regular songs first
-    for pdf, page_count in zip(pdf_files, pdf_page_counts):
+    for pdf in song_merge_order:
         pdf_to_merged_position[pdf] = current_position
-        current_position += page_count
-    
-    # Separate songs after regular songs
-    for folder, folder_songs in separate_folder_songs.items():
-        for pdf in folder_songs:
-            page_count = PdfReader(str(pdf)).get_num_pages()
-            pdf_to_merged_position[pdf] = current_position
-            current_position += page_count
+        current_position += PdfReader(str(pdf)).get_num_pages()
     
 
     # Add bookmarks for each song start page
@@ -1619,6 +1653,7 @@ create_word_songbook(
     include_main_index=WORD_INCLUDE_MAIN_INDEX,
     index_order=WORD_INDEX_ORDER,
     index_page_break_marker=WORD_INDEX_PAGE_BREAK,
+    song_order=song_merge_order,
 )
 
 # --- Cleanup ---

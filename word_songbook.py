@@ -369,6 +369,7 @@ def create_word_songbook(
     include_main_index=True,
     index_order=None,
     index_page_break_marker=None,
+    song_order=None,
 ):
     """Create an image-based DOCX with bookmark-backed index links."""
     output_path = Path(output_path)
@@ -378,7 +379,11 @@ def create_word_songbook(
         for folder_songs in separate_folder_songs.values()
         for pdf in folder_songs
     ]
-    songs = regular_pdfs + separate_pdfs
+    songs = (
+        list(song_order)
+        if song_order is not None
+        else regular_pdfs + separate_pdfs
+    )
     bookmark_names = {
         pdf_path: f"song_{index:04d}"
         for index, pdf_path in enumerate(songs, start=1)
