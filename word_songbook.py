@@ -297,6 +297,7 @@ def create_word_songbook(
     song_start_pages,
     main_index_title,
     index_entry_spacing_pt=1.5,
+    include_main_index=True,
     index_order=None,
 ):
     """Create an image-based DOCX with bookmark-backed index links."""
@@ -325,7 +326,9 @@ def create_word_songbook(
     normal_style.paragraph_format.space_after = Pt(4)
     normal_style.paragraph_format.line_spacing = 1.25
 
-    indexes = [(main_index_title, _normal_entries(regular_pdfs))]
+    indexes = []
+    if include_main_index:
+        indexes.append((main_index_title, _normal_entries(regular_pdfs)))
     for pdfs, _index_path, index_title in extra_index_infos:
         sorted_pdfs = sorted(pdfs, key=lambda path: path.stem.lower())
         indexes.append((index_title, _normal_entries(sorted_pdfs)))

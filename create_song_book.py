@@ -43,13 +43,14 @@ SEPARATE_INDEX_SPACING = 0.7 * cm  # Space between separate indexes on the same 
 # Word index layout. Reorder these titles to control the DOCX index order.
 # Any dynamically discovered index not listed here is appended at the end.
 WORD_INDEX_ENTRY_SPACING_PT = 1.5
+WORD_INCLUDE_MAIN_INDEX = True
 WORD_INDEX_ORDER = [
     INDEX_TITLE,
-    "שירים יווניים",
     "שירים שמחים",
     "שירים שקטים",
     "אומנים",
     "שירי חגים",
+    "שירים יווניים",
     "שירים באנגלית",
     "שירים ספרדיים",
     "שירים צרפתיים",
@@ -1609,6 +1610,7 @@ create_word_songbook(
     song_start_pages=all_pdf_start_page_map,
     main_index_title=INDEX_TITLE,
     index_entry_spacing_pt=WORD_INDEX_ENTRY_SPACING_PT,
+    include_main_index=WORD_INCLUDE_MAIN_INDEX,
     index_order=WORD_INDEX_ORDER,
 )
 
