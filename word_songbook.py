@@ -271,20 +271,38 @@ def _normal_entries(pdf_paths):
     return [(path.stem, path) for path in pdf_paths]
 
 
-def _order_indexes(indexes, index_order):
-    """Order indexes by title while retaining dynamically discovered indexes."""
+def _order_indexes(indexes, index_order, page_break_marker=None):
+    """Order indexes and preserve explicit page-break markers."""
     if not index_order:
         return indexes
 
     remaining = list(indexes)
     ordered = []
     for requested_title in index_order:
+        if (
+            page_break_marker is not None
+            and requested_title == page_break_marker
+        ):
+            ordered.append(None)
+            continue
         for index_number, (title, entries) in enumerate(remaining):
             if title == requested_title:
                 ordered.append(remaining.pop(index_number))
                 break
     ordered.extend(remaining)
-    return ordered
+
+    # Ignore markers that would create leading, trailing, or duplicate blank
+    # pages while retaining every marker placed between actual indexes.
+    normalized = []
+    for item in ordered:
+        if item is None:
+            if normalized and normalized[-1] is not None:
+                normalized.append(None)
+        else:
+            normalized.append(item)
+    if normalized and normalized[-1] is None:
+        normalized.pop()
+    return normalized
 
 
 def create_word_songbook(
@@ -299,6 +317,7 @@ def create_word_songbook(
     index_entry_spacing_pt=1.5,
     include_main_index=True,
     index_order=None,
+    index_page_break_marker=None,
 ):
     """Create an image-based DOCX with bookmark-backed index links."""
     output_path = Path(output_path)
@@ -347,13 +366,19 @@ def create_word_songbook(
     for folder, folder_songs in separate_folder_songs.items():
         indexes.append((folder.name, _normal_entries(folder_songs)))
 
-    indexes = _order_indexes(indexes, index_order)
+    index_items = _order_indexes(
+        indexes,
+        index_order,
+        page_break_marker=index_page_break_marker,
+    )
 
-    for index_number, (title, entries) in enumerate(indexes):
-        # The main index is large, so keep it on its own page even if the
-        # configured order moves it away from the first position.
-        if title == main_index_title and index_number > 0:
+    index_number = 0
+    for item in index_items:
+        if item is None:
             document.add_page_break()
+            continue
+
+        title, entries = item
         _add_index_page(
             document,
             title,
@@ -363,8 +388,7 @@ def create_word_songbook(
             index_entry_spacing_pt,
             is_first=index_number == 0,
         )
-        if title == main_index_title and index_number < len(indexes) - 1:
-            document.add_page_break()
+        index_number += 1
 
     song_section = document.add_section(WD_SECTION.NEW_PAGE)
     _configure_song_section(song_section)
