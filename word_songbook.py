@@ -100,22 +100,55 @@ def _remove_table_borders(table):
         borders.append(element)
 
 
-def _add_index_entry(cell, label, page_number, anchor, spacing_after_pt):
-    paragraph = cell.paragraphs[0]
+def _add_index_entry(
+    title_cell,
+    page_cell,
+    label,
+    page_number,
+    anchor,
+    spacing_after_pt,
+):
+    title_paragraph = title_cell.paragraphs[0]
     # In Word, paragraph-level bidi mirrors left/right justification. Using
-    # LEFT here therefore produces physical right alignment while preserving
-    # the desired RTL visual order: title ... page number.
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    paragraph_properties = paragraph._p.get_or_add_pPr()
+    # LEFT here therefore produces physical right alignment for the title.
+    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    paragraph_properties = title_paragraph._p.get_or_add_pPr()
     if paragraph_properties.find(qn("w:bidi")) is None:
         paragraph_properties.append(OxmlElement("w:bidi"))
-    paragraph.paragraph_format.space_before = Pt(0)
-    paragraph.paragraph_format.space_after = Pt(spacing_after_pt)
-    paragraph.paragraph_format.line_spacing = 1.0
-    _add_internal_link(paragraph, label, anchor)
-    separator = paragraph.add_run("  ···  ")
-    _set_run_font(separator, size=11, color=RGBColor(60, 60, 60))
-    _add_internal_link(paragraph, str(page_number), anchor)
+    tabs = paragraph_properties.find(qn("w:tabs"))
+    if tabs is None:
+        tabs = OxmlElement("w:tabs")
+        paragraph_properties.append(tabs)
+    leader_tab = OxmlElement("w:tab")
+    leader_tab.set(qn("w:val"), "left")
+    leader_tab.set(qn("w:leader"), "dot")
+    leader_tab.set(qn("w:pos"), "4100")
+    tabs.append(leader_tab)
+    title_paragraph.paragraph_format.space_before = Pt(0)
+    title_paragraph.paragraph_format.space_after = Pt(spacing_after_pt)
+    title_paragraph.paragraph_format.line_spacing = 1.0
+    _add_internal_link(title_paragraph, label, anchor)
+    leader = title_paragraph.add_run("\t")
+    _set_run_font(leader, size=11, color=RGBColor(60, 60, 60))
+
+    # A dedicated fixed-width cell keeps every page number on the same
+    # physical left edge, independent of the song-title length.
+    page_paragraph = page_cell.paragraphs[0]
+    page_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    page_properties = page_paragraph._p.get_or_add_pPr()
+    page_tabs = OxmlElement("w:tabs")
+    page_leader_tab = OxmlElement("w:tab")
+    page_leader_tab.set(qn("w:val"), "right")
+    page_leader_tab.set(qn("w:leader"), "dot")
+    page_leader_tab.set(qn("w:pos"), "500")
+    page_tabs.append(page_leader_tab)
+    page_properties.append(page_tabs)
+    page_paragraph.paragraph_format.space_before = Pt(0)
+    page_paragraph.paragraph_format.space_after = Pt(spacing_after_pt)
+    page_paragraph.paragraph_format.line_spacing = 1.0
+    _add_internal_link(page_paragraph, str(page_number), anchor)
+    page_leader = page_paragraph.add_run("\t")
+    _set_run_font(page_leader, size=11, color=RGBColor(60, 60, 60))
 
 
 def _add_index_page(
@@ -141,22 +174,39 @@ def _add_index_page(
     right_entries = entries[:half]
     left_entries = entries[half:]
     row_count = max(len(right_entries), len(left_entries), 1)
-    table = document.add_table(rows=row_count, cols=2)
+    table = document.add_table(rows=row_count, cols=4)
     table.alignment = WD_TABLE_ALIGNMENT.RIGHT
     table.autofit = False
     _remove_table_borders(table)
+    cell_widths = (
+        Inches(0.42),
+        Inches(2.93),
+        Inches(0.42),
+        Inches(2.93),
+    )
+    for column, width in zip(table.columns, cell_widths):
+        column.width = width
 
     for row_index in range(row_count):
-        left_cell, right_cell = table.rows[row_index].cells
-        for cell in (left_cell, right_cell):
-            cell.width = Inches(3.35)
+        (
+            left_page_cell,
+            left_title_cell,
+            right_page_cell,
+            right_title_cell,
+        ) = table.rows[row_index].cells
+        for cell, width in zip(table.rows[row_index].cells, cell_widths):
+            cell.width = width
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-            _set_cell_margins(cell)
+        for page_cell in (left_page_cell, right_page_cell):
+            _set_cell_margins(page_cell, start=100, end=0)
+        for title_cell in (left_title_cell, right_title_cell):
+            _set_cell_margins(title_cell, start=0, end=100)
 
         if row_index < len(left_entries):
             label, pdf_path = left_entries[row_index]
             _add_index_entry(
-                left_cell,
+                left_title_cell,
+                left_page_cell,
                 label,
                 page_numbers[pdf_path],
                 bookmark_names[pdf_path],
@@ -165,7 +215,8 @@ def _add_index_page(
         if row_index < len(right_entries):
             label, pdf_path = right_entries[row_index]
             _add_index_entry(
-                right_cell,
+                right_title_cell,
+                right_page_cell,
                 label,
                 page_numbers[pdf_path],
                 bookmark_names[pdf_path],
