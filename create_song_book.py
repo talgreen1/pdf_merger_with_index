@@ -1,5 +1,5 @@
 from pathlib import Path
-from pypdf import PdfMerger, PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
@@ -7,11 +7,22 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import cm
 import arabic_reshaper
 from bidi.algorithm import get_display
+from io import BytesIO
+
+import fitz
+from docx import Document
+from docx.enum.section import WD_SECTION
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Inches, Pt
 
 # --- Config ---
 pdf_folder = Path("c:/temp/songs/pdfs/")  # Folder for input PDF files
 output_folder = Path("c:/temp/songs/Res/")  # Folder for final output PDF
 output_pdf = output_folder / "רגע של אור - שירים.pdf"
+output_docx = output_folder / "רגע של אור - שירים.docx"
 index_pdf = output_folder / "index_temp.pdf"
 output_folder.mkdir(parents=True, exist_ok=True)
 hebrew_font_path = Path(__file__).parent / "david.ttf"  # Font should be in the project directory
@@ -1334,7 +1345,7 @@ for item in separate_index_infos:
         print(f"[DEBUG] Created separate index for folder '{folder_name}' with {len(folder_songs)} songs")
 
 # --- Step 3: Merge all indexes + all songs ---
-merger = PdfMerger()
+merger = PdfWriter()
 # Add all index PDFs
 for idx_pdf in index_pdfs:
     merger.append(str(idx_pdf))
@@ -1579,6 +1590,267 @@ for item in separate_index_infos:
 
 add_all_index_links_with_pypdf(output_pdf, index_pdfs, index_page_counts, index_infos, all_pdf_start_page_map)
 
+
+# --- Step 6: Create an editable DOCX with compact RTL indexes ---
+def set_paragraph_bidi(paragraph):
+    """Set an index-entry paragraph to right-to-left text flow."""
+    paragraph_properties = paragraph._p.get_or_add_pPr()
+    if paragraph_properties.find(qn("w:bidi")) is None:
+        paragraph_properties.append(OxmlElement("w:bidi"))
+
+
+def set_run_font(run, font_name, font_size):
+    run.font.name = font_name
+    run.font.size = Pt(font_size)
+    run_properties = run._element.get_or_add_rPr()
+    run_fonts = run_properties.find(qn("w:rFonts"))
+    if run_fonts is None:
+        run_fonts = OxmlElement("w:rFonts")
+        run_properties.insert(0, run_fonts)
+    for font_attribute in ("ascii", "hAnsi", "cs"):
+        run_fonts.set(qn(f"w:{font_attribute}"), font_name)
+
+
+def add_internal_hyperlink(paragraph, text, bookmark_name):
+    """Add a Word hyperlink that jumps to a song-page bookmark."""
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("w:anchor"), bookmark_name)
+    hyperlink.set(qn("w:history"), "1")
+
+    hyperlink_run = OxmlElement("w:r")
+    run_properties = OxmlElement("w:rPr")
+    run_fonts = OxmlElement("w:rFonts")
+    for font_attribute in ("ascii", "hAnsi", "cs"):
+        run_fonts.set(qn(f"w:{font_attribute}"), "David")
+    run_properties.append(run_fonts)
+
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "0563C1")
+    run_properties.append(color)
+
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    run_properties.append(underline)
+
+    font_size = OxmlElement("w:sz")
+    font_size.set(qn("w:val"), "22")
+    run_properties.append(font_size)
+    complex_font_size = OxmlElement("w:szCs")
+    complex_font_size.set(qn("w:val"), "22")
+    run_properties.append(complex_font_size)
+
+    text_element = OxmlElement("w:t")
+    text_element.text = text
+    hyperlink_run.append(run_properties)
+    hyperlink_run.append(text_element)
+    hyperlink.append(hyperlink_run)
+    paragraph._p.append(hyperlink)
+
+
+def format_index_paragraph(paragraph):
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    set_paragraph_bidi(paragraph)
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    paragraph.paragraph_format.line_spacing = 1.0
+
+
+def add_index_title(document, title, is_first=False):
+    paragraph = document.add_paragraph()
+    # Do not add w:bidi to the standalone heading: Word physically flips a
+    # right-aligned heading when both properties are present.
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    paragraph.paragraph_format.keep_with_next = True
+    paragraph.paragraph_format.space_before = Pt(0 if is_first else 8)
+    paragraph.paragraph_format.space_after = Pt(4)
+    run = paragraph.add_run(title)
+    run.bold = True
+    set_run_font(run, "David", 18)
+
+
+def add_index_table(document, entries, bookmark_names):
+    """Add a two-column index, filling the right column before the left."""
+    rows_per_column = max(1, (len(entries) + 1) // 2)
+    table = document.add_table(rows=rows_per_column, cols=2)
+    table.alignment = WD_TABLE_ALIGNMENT.RIGHT
+    table.autofit = True
+
+    for row_number in range(rows_per_column):
+        right_entry_number = row_number
+        left_entry_number = row_number + rows_per_column
+        for cell_number, entry_number in (
+            (1, right_entry_number),
+            (0, left_entry_number),
+        ):
+            paragraph = table.cell(row_number, cell_number).paragraphs[0]
+            format_index_paragraph(paragraph)
+            if entry_number >= len(entries):
+                continue
+            display_text, pdf_path = entries[entry_number]
+            page_number = all_pdf_start_page_map[pdf_path]
+            link_text = f"{display_text}  ···  {page_number}"
+            add_internal_hyperlink(paragraph, link_text, bookmark_names[pdf_path])
+
+
+def add_index_section(document, title, entries, bookmark_names, is_first=False):
+    add_index_title(document, title, is_first=is_first)
+    add_index_table(document, entries, bookmark_names)
+
+
+def add_song_bookmark(paragraph, bookmark_id, bookmark_name):
+    bookmark_start = OxmlElement("w:bookmarkStart")
+    bookmark_start.set(qn("w:id"), str(bookmark_id))
+    bookmark_start.set(qn("w:name"), bookmark_name)
+    paragraph._p.insert(0, bookmark_start)
+
+    bookmark_end = OxmlElement("w:bookmarkEnd")
+    bookmark_end.set(qn("w:id"), str(bookmark_id))
+    paragraph._p.append(bookmark_end)
+
+
+def create_docx_songbook(final_pdf_path, docx_path):
+    regular_song_order = list(pdf_files)
+    separate_song_order = [
+        song
+        for folder_songs in separate_folder_songs.values()
+        for song in folder_songs
+    ]
+    complete_song_order = regular_song_order + separate_song_order
+    bookmark_names = {
+        pdf_path: f"song_{song_number:04d}"
+        for song_number, pdf_path in enumerate(complete_song_order, start=1)
+    }
+
+    document = Document()
+    index_section = document.sections[0]
+    index_section.page_width = Inches(8.2677)
+    index_section.page_height = Inches(11.6929)
+    index_section.top_margin = Inches(0.60)
+    index_section.bottom_margin = Inches(0.60)
+    index_section.left_margin = Inches(0.56)
+    index_section.right_margin = Inches(0.56)
+
+    main_entries = [(pdf.stem, pdf) for pdf in regular_song_order]
+    add_index_section(
+        document,
+        INDEX_TITLE,
+        main_entries,
+        bookmark_names,
+        is_first=True,
+    )
+    document.add_page_break()
+
+    # more.txt indexes
+    for extra_pdfs, _index_pdf_path, index_title in extra_index_infos:
+        sorted_pdfs = sorted(extra_pdfs, key=lambda path: path.stem.lower())
+        add_index_section(
+            document,
+            index_title,
+            [(pdf.stem, pdf) for pdf in sorted_pdfs],
+            bookmark_names,
+        )
+
+    # Automatic subfolder indexes, each with its own heading/table.
+    for folder_pdfs, folder_name in subfolder_combined_infos:
+        add_index_section(
+            document,
+            folder_name,
+            [(pdf.stem, pdf) for pdf in folder_pdfs],
+            bookmark_names,
+        )
+    for folder_pdfs, _page_counts, _index_path, folder_name in large_subfolder_infos:
+        add_index_section(
+            document,
+            folder_name,
+            [(pdf.stem, pdf) for pdf in folder_pdfs],
+            bookmark_names,
+        )
+
+    # Artist index.
+    if artist_songs:
+        artist_entries = []
+        for artist_name in sorted(artist_songs, key=str.lower):
+            songs = sorted(artist_songs[artist_name], key=lambda item: item[0].lower())
+            for song_name, artist_pdf_path in songs:
+                artist_entries.append(
+                    (f"{artist_name} - {song_name}", artist_pdf_path)
+                )
+        add_index_section(
+            document,
+            "אומנים",
+            artist_entries,
+            bookmark_names,
+        )
+
+    # Separate collections stay separate in the DOCX index, but flow onto the
+    # same page whenever space permits.
+    for folder, folder_songs in separate_folder_songs.items():
+        add_index_section(
+            document,
+            folder.name,
+            [(pdf.stem, pdf) for pdf in folder_songs],
+            bookmark_names,
+        )
+
+    song_section = document.add_section(WD_SECTION.NEW_PAGE)
+    song_section.page_width = Inches(8.2677)
+    song_section.page_height = Inches(11.6929)
+    song_section.top_margin = Inches(0.18)
+    song_section.bottom_margin = Inches(0.24)
+    song_section.left_margin = Inches(0.18)
+    song_section.right_margin = Inches(0.18)
+    usable_width = song_section.page_width - song_section.left_margin - song_section.right_margin
+
+    start_page_to_pdf = {
+        page_number: pdf
+        for pdf, page_number in all_pdf_start_page_map.items()
+    }
+    pdf_document = fitz.open(final_pdf_path)
+    total_song_pages = sum(
+        PdfReader(str(source_pdf)).get_num_pages()
+        for source_pdf in complete_song_order
+    )
+    first_song_pdf_page = pdf_document.page_count - total_song_pages
+    print(
+        f"[DEBUG] DOCX source pages: total={pdf_document.page_count}, "
+        f"indexes={first_song_pdf_page}, songs={total_song_pages}, "
+        f"source_files={len(complete_song_order)}"
+    )
+    if first_song_pdf_page < 1:
+        raise RuntimeError(
+            "Could not determine the final PDF index boundary before DOCX generation"
+        )
+    song_pages = total_song_pages
+
+    for song_page_offset in range(song_pages):
+        song_page_number = song_page_offset + 1
+        paragraph = document.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        if song_page_offset > 0:
+            paragraph.paragraph_format.page_break_before = True
+
+        pdf_page = pdf_document.load_page(first_song_pdf_page + song_page_offset)
+        pixmap = pdf_page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+        image_stream = BytesIO(pixmap.tobytes("png"))
+        paragraph.add_run().add_picture(image_stream, width=usable_width)
+
+        source_pdf = start_page_to_pdf.get(song_page_number)
+        if source_pdf is not None:
+            add_song_bookmark(
+                paragraph,
+                bookmark_id=complete_song_order.index(source_pdf) + 1,
+                bookmark_name=bookmark_names[source_pdf],
+            )
+
+    pdf_document.close()
+    document.save(docx_path)
+    print(f"[DONE] DOCX created with compact RTL indexes: {docx_path}")
+
+
+create_docx_songbook(output_pdf, output_docx)
+
 # --- Cleanup ---
 for idx_pdf in index_pdfs:
     if idx_pdf.exists():
@@ -1591,4 +1863,4 @@ for temp_file in subfolder_temp_files:
 if temp_merged_path.exists():
     temp_merged_path.unlink()
 
-print(f"\u2705 Done! Songbook with Hebrew & page numbers: {output_pdf}")
+print(f"[DONE] PDF created with Hebrew index and page numbers: {output_pdf}")
