@@ -42,7 +42,7 @@ SEPARATE_INDEX_SPACING = 0.7 * cm  # Space between separate indexes on the same 
 
 # Word index layout. Reorder these titles to control the DOCX index order.
 # Any dynamically discovered index not listed here is appended at the end.
-WORD_INDEX_ENTRY_SPACING_PT = 1.5
+WORD_INDEX_ENTRY_SPACING_PT = 5
 WORD_INCLUDE_MAIN_INDEX = True
 WORD_INDEX_ORDER = [
     INDEX_TITLE,
