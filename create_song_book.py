@@ -1,5 +1,5 @@
 from pathlib import Path
-from pypdf import PdfMerger, PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
@@ -9,8 +9,8 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 
 # --- Config ---
-pdf_folder = Path("c:/temp/book/pdfs/")  # Folder for input PDF files
-output_folder = Path("c:/temp/book/Res/")  # Folder for final output PDF
+pdf_folder = Path("c:/temp/songs/pdfs/")  # Folder for input PDF files
+output_folder = Path("c:/temp/songs/Res/")  # Folder for final output files
 output_pdf = output_folder / "רגע של אור - שירים.pdf"
 index_pdf = output_folder / "index_temp.pdf"
 output_docx = output_pdf.with_suffix(".docx")
@@ -1335,7 +1335,7 @@ for item in separate_index_infos:
         print(f"[DEBUG] Created separate index for folder '{folder_name}' with {len(folder_songs)} songs")
 
 # --- Step 3: Merge all indexes + all songs ---
-merger = PdfMerger()
+merger = PdfWriter()
 # Add all index PDFs
 for idx_pdf in index_pdfs:
     merger.append(str(idx_pdf))
@@ -1606,5 +1606,5 @@ for temp_file in subfolder_temp_files:
 if temp_merged_path.exists():
     temp_merged_path.unlink()
 
-print(f"Done! Songbook with Hebrew & page numbers: {output_pdf}")
-print(f"Done! Word songbook with bookmark links: {output_docx}")
+print(f"[DONE] PDF created with Hebrew index and page numbers: {output_pdf}")
+print(f"[DONE] DOCX created with compact RTL indexes: {output_docx}")

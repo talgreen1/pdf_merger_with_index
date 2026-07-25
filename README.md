@@ -1,10 +1,11 @@
-# Songbook PDF Merger with Hebrew Index
+# Songbook PDF and Word Generator with Hebrew Index
 
-This Python script automates the creation of a songbook PDF with Hebrew support, combining multiple PDF files into a single document with comprehensive indexing and page numbering.
+This Python script creates both PDF and DOCX songbooks with Hebrew support, comprehensive indexes, and page numbering.
 
 ## Features
 
 - **Automatic PDF Merging:** Combines all PDFs from a specified directory (including subdirectories) into a single PDF
+- **Compact Word Indexes:** Creates a DOCX with right-aligned RTL indexes and places multiple small indexes on the same page when space permits
 - **Hebrew Support:** Full Hebrew text support with proper right-to-left rendering using custom Hebrew font
 - **Multiple Index Types:**
   - Main comprehensive index of all songs
@@ -38,7 +39,7 @@ Before running the script, you need to modify the configuration variables at the
 ```python
 # --- Config ---
 pdf_folder = Path("c:/temp/songs/pdfs/")  # Folder for input PDF files
-output_folder = Path("c:/temp/songs/Res/")  # Folder for final output PDF
+output_folder = Path("c:/temp/songs/Res/")  # Folder for final output files
 output_pdf = output_folder / "רגע של אור - שירים.pdf"  # Output filename
 ```
 
@@ -82,7 +83,7 @@ same base filename. In Word, use Ctrl+Click on an index entry to jump directly
 to the first page of that song. These links target bookmarks rather than
 calculated document page numbers, so pagination changes do not break them.
 
-The script generates a single PDF with the following structure:
+Both generated files use the following content structure:
 
 1. **Main Index** - Comprehensive list of all songs with page numbers (excluding separated songs)
 2. **Artist Index** - Songs organized by artist name

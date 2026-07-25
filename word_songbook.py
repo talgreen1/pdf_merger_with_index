@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import fitz
 from docx import Document
 from docx.enum.section import WD_SECTION
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -77,7 +77,7 @@ def _add_internal_link(paragraph, text, anchor):
     paragraph._p.append(hyperlink)
 
 
-def _set_cell_margins(cell, top=70, start=100, bottom=70, end=100):
+def _set_cell_margins(cell, top=0, start=100, bottom=0, end=100):
     tc_pr = cell._tc.get_or_add_tcPr()
     tc_mar = tc_pr.first_child_found_in("w:tcMar")
     if tc_mar is None:
@@ -112,17 +112,29 @@ def _remove_table_borders(table):
 def _add_index_entry(cell, label, page_number, anchor):
     paragraph = cell.paragraphs[0]
     _set_rtl(paragraph)
-    paragraph.paragraph_format.space_after = Pt(2)
+    paragraph.paragraph_format.space_after = Pt(0)
+    paragraph.paragraph_format.line_spacing = 1.0
     _add_internal_link(paragraph, label, anchor)
     separator = paragraph.add_run("  ···  ")
     _set_run_font(separator, size=11, color=RGBColor(60, 60, 60))
     _add_internal_link(paragraph, str(page_number), anchor)
 
 
-def _add_index_page(document, title, entries, bookmark_names, page_numbers):
+def _add_index_page(
+    document,
+    title,
+    entries,
+    bookmark_names,
+    page_numbers,
+    is_first=False,
+):
     title_paragraph = document.add_paragraph()
-    _set_rtl(title_paragraph)
-    title_paragraph.paragraph_format.space_after = Pt(10)
+    # Word physically flips standalone headings when right alignment and
+    # paragraph-level bidi are both present. Hebrew runs remain RTL without it.
+    title_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    title_paragraph.paragraph_format.keep_with_next = True
+    title_paragraph.paragraph_format.space_before = Pt(0 if is_first else 8)
+    title_paragraph.paragraph_format.space_after = Pt(4)
     title_run = title_paragraph.add_run(title)
     _set_run_font(title_run, size=18, bold=True)
 
@@ -131,6 +143,7 @@ def _add_index_page(document, title, entries, bookmark_names, page_numbers):
     left_entries = entries[half:]
     row_count = max(len(right_entries), len(left_entries), 1)
     table = document.add_table(rows=row_count, cols=2)
+    table.alignment = WD_TABLE_ALIGNMENT.RIGHT
     table.autofit = False
     _remove_table_borders(table)
 
@@ -313,7 +326,9 @@ def create_word_songbook(
         indexes.append((folder.name, _normal_entries(folder_songs)))
 
     for index_number, (title, entries) in enumerate(indexes):
-        if index_number:
+        # Keep the full main index on its own page. All later indexes flow
+        # naturally so multiple small indexes can share a page.
+        if index_number == 1:
             document.add_page_break()
         _add_index_page(
             document,
@@ -321,6 +336,7 @@ def create_word_songbook(
             entries,
             bookmark_names,
             song_start_pages,
+            is_first=index_number == 0,
         )
 
     song_section = document.add_section(WD_SECTION.NEW_PAGE)
