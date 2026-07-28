@@ -2,8 +2,8 @@
 
 ## Status
 
-This document is the implementation plan for the chapters feature. The feature
-described here is not implemented yet.
+Implemented on 2026-07-28. This document records the design, implementation
+stages, validation rules, and acceptance criteria used for the feature.
 
 ## Objective
 

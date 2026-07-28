@@ -458,3 +458,61 @@ def create_word_songbook(
         document.save(str(output_path))
 
     return output_path
+
+
+def create_word_songbook_from_plan(
+    output_path,
+    indexes,
+    songs,
+    song_start_pages,
+    index_entry_spacing_pt=1.5,
+):
+    """Create a DOCX from normalized chapter/index data.
+
+    ``indexes`` is an ordered iterable of ``(title, entries)`` pairs, where
+    every entry is ``(display_label, pdf_path)``. All indexes are emitted
+    before the canonical ordered song list.
+    """
+    output_path = Path(output_path)
+    songs = list(songs)
+    indexes = list(indexes)
+    bookmark_names = {
+        pdf_path: f"song_{index:04d}"
+        for index, pdf_path in enumerate(songs, start=1)
+    }
+
+    document = Document()
+    _configure_index_section(document.sections[0])
+    normal_style = document.styles["Normal"]
+    normal_style.font.name = DAVID_FONT
+    normal_style._element.rPr.rFonts.set(qn("w:ascii"), DAVID_FONT)
+    normal_style._element.rPr.rFonts.set(qn("w:hAnsi"), DAVID_FONT)
+    normal_style._element.rPr.rFonts.set(qn("w:cs"), DAVID_FONT)
+    normal_style.font.size = Pt(11)
+    normal_style.paragraph_format.space_before = Pt(0)
+    normal_style.paragraph_format.space_after = Pt(4)
+    normal_style.paragraph_format.line_spacing = 1.25
+
+    for index_number, (title, entries) in enumerate(indexes):
+        _add_index_page(
+            document,
+            title,
+            list(entries),
+            bookmark_names,
+            song_start_pages,
+            index_entry_spacing_pt,
+            is_first=index_number == 0,
+        )
+
+    song_section = document.add_section(WD_SECTION.NEW_PAGE)
+    _configure_song_section(song_section)
+    with TemporaryDirectory(prefix="word_songbook_") as temp_directory:
+        _add_song_pages(
+            document,
+            songs,
+            bookmark_names,
+            Path(temp_directory),
+        )
+        document.save(str(output_path))
+
+    return output_path

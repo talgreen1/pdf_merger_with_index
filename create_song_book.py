@@ -238,7 +238,16 @@ print(f"[DEBUG] Total PDFs: {len(all_pdf_files)}, Regular PDFs: {len(pdf_files)}
 print(f"[DEBUG] Popular PDFs placed first: {len(popular_pdfs)}")
 
 # --- Step 2: Create index PDF with Hebrew support and page numbers ---
-def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_counts=None, index_title=None, song_start_pages=None):
+def create_index(
+    pdf_paths,
+    output_path,
+    font_path,
+    start_page=1,
+    pdf_page_counts=None,
+    index_title=None,
+    song_start_pages=None,
+    display_labels=None,
+):
     # Register fonts based on configuration
     if INDEX_FONT_TYPE == "Lucida":
         # Try to register Lucida Sans Unicode for mixed language support
@@ -362,9 +371,15 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
     current_y = draw_headers()
     current_column = "right"  # Start with right column (Hebrew reading direction)
     songs_drawn_on_page = 0
+    index_page_number = 0
+    link_placements = []
 
     for i, path in enumerate(pdf_paths):
-        title = path.stem  # Filename without extension
+        title = (
+            display_labels[i]
+            if display_labels is not None
+            else path.stem
+        )
         song_page = next(song_start_pages_iter)
         page_str = str(song_page)
 
@@ -376,36 +391,42 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
             col_left_margin = left_column_left
             col_right_margin = left_column_right
 
-        # For separate indexes, don't add numbering; for regular indexes, no numbering either
-        if is_separate_index:
-            # For separate indexes with mixed languages, use smaller font and process Hebrew parts
-            separate_font_size = int(INDEX_SONG_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
-
-            # Process the title to reverse only Hebrew parts
+        # Use the Unicode-capable font for separate indexes and any entry that
+        # contains non-Hebrew letters (Latin, Cyrillic, accented French, etc.).
+        has_non_hebrew_letters = any(
+            char.isalpha() and not ('\u0590' <= char <= '\u05FF')
+            for char in title
+        )
+        if is_separate_index or has_non_hebrew_letters:
             def fix_hebrew_in_mixed_text(text):
                 import re
-                # Split text by common separators while preserving them
+
                 parts = re.split('( - | \\- )', text)
                 processed_parts = []
-
                 for part in parts:
                     if part in [' - ', ' \\- ']:
                         processed_parts.append(part)
-                    else:
-                        # Check if this part contains Hebrew characters
-                        has_hebrew = any('\u0590' <= char <= '\u05FF' for char in part)
-                        if has_hebrew and not any(char.isascii() and char.isalpha() for char in part):
-                            # Pure Hebrew text - apply reshaping
-                            processed_parts.append(reshape_hebrew(part))
-                        else:
-                            # Mixed or non-Hebrew text - keep as is
-                            processed_parts.append(part)
-
+                        continue
+                    has_hebrew = any(
+                        '\u0590' <= char <= '\u05FF' for char in part
+                    )
+                    has_ascii_letters = any(
+                        char.isascii() and char.isalpha() for char in part
+                    )
+                    processed_parts.append(
+                        reshape_hebrew(part)
+                        if has_hebrew and not has_ascii_letters
+                        else part
+                    )
                 return ''.join(processed_parts)
 
             title_str = fix_hebrew_in_mixed_text(title)
             font_name = "LucidaFont"
-            font_size = separate_font_size
+            font_size = (
+                int(INDEX_SONG_FONT_SIZE * SEPARATE_INDEX_FONT_SIZE_RATIO)
+                if is_separate_index
+                else INDEX_SONG_FONT_SIZE
+            )
         else:
             # No numbering - just the song name
             title_str = reshape_hebrew(title)
@@ -433,6 +454,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
             else:
                 # Start new page
                 c.showPage()
+                index_page_number += 1
                 current_y = draw_headers()
                 current_column = "right"
                 songs_drawn_on_page = 0
@@ -454,6 +476,18 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
                 # First line: draw page number and line
                 c.drawString(col_left_margin, entry_y, page_str)
                 c.drawRightString(col_right_margin, entry_y, line)
+                link_placements.append(
+                    (
+                        index_page_number,
+                        (
+                            col_left_margin,
+                            entry_y - font_size * 0.3,
+                            col_left_margin + page_width + 0.25 * cm,
+                            entry_y + font_size,
+                        ),
+                        path,
+                    )
+                )
 
                 # Add dots only on the first line
                 line_width = c.stringWidth(line, font_name, font_size)
@@ -484,6 +518,7 @@ def create_index(pdf_paths, output_path, font_path, start_page=1, pdf_page_count
             pass
 
     c.save()
+    return link_placements
 
 # --- Step 2.5: Estimate index page count ---
 def estimate_index_pages(num_songs):
@@ -1123,6 +1158,29 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
                 pass
 
     c.save()
+
+# --- Manifest mode: chapters and explicitly configured indexes ---
+book_config_path = pdf_folder / "book.json"
+if book_config_path.exists():
+    from book_config import BookConfigError, resolve_book_config
+    from manifest_songbook import generate_manifest_songbook
+
+    try:
+        book_plan = resolve_book_config(pdf_folder, book_config_path)
+    except BookConfigError as error:
+        raise SystemExit("[ERROR] Invalid book.json: {}".format(error))
+
+    generate_manifest_songbook(
+        plan=book_plan,
+        output_pdf=output_pdf,
+        output_docx=output_docx,
+        output_folder=output_folder,
+        font_path=hebrew_font_path,
+        create_index=create_index,
+        page_number_position=PAGE_NUMBER_POSITION,
+        word_index_entry_spacing_pt=WORD_INDEX_ENTRY_SPACING_PT,
+    )
+    raise SystemExit(0)
 
 # --- New: Map file name to full path for fast lookup ---
 pdf_name_to_path = {p.name: p for p in pdf_files}
