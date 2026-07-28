@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "allow_duplicate_songs": false,
+  "unassigned_song_policy": "error",
+  "collections": {
+    "popular": {
+      "title": "הפופולרים",
+      "folder": "הפופולרים"
+    },
+    "happy": {
+      "title": "שירים שמחים",
+      "folder": "שירים שמחים"
+    },
+    "quiet": {
+      "title": "שירים שקטים",
+      "folder": "שירים שקטים"
+    },
+    "russian": {
+      "title": "שירים רוסיים",
+      "folder": "שירים רוסיים"
+    },
+    "french": {
+      "title": "שירים צרפתיים",
+      "folder": "שירים צרפתיים"
+    },
+    "spanish": {
+      "title": "שירים ספרדיים",
+      "folder": "שירים ספרדיים"
+    },
+    "greek": {
+      "title": "שירים יווניים",
+      "folder": "שירים יווניים"
+    },
+    "english": {
+      "title": "שירים באנגלית",
+      "folder": "שירים באנגלית"
+    },
+    "holidays": {
+      "title": "שירי חגים",
+      "folder": "שירי חגים"
+    },
+    "medleys": {
+      "title": "מחרוזות",
+      "folder": "מחרוזות"
+    }
+  },
+  "chapters": [
+    {
+      "id": "popular",
+      "title": "הפופולרים",
+      "collections": ["popular"],
+      "indexes": [
+        {
+          "title": "הפופולרים",
+          "scope": "chapter"
+        }
+      ]
+    },
+    {
+      "id": "main",
+      "title": "השירים המרכזיים",
+      "collections": ["happy", "quiet"],
+      "indexes": [
+        {
+          "title": "כל השירים",
+          "scope": "chapter"
+        },
+        {
+          "title": "שירים שמחים",
+          "collection": "happy"
+        },
+        {
+          "title": "שירים שקטים",
+          "collection": "quiet"
+        }
+      ]
+    },
+    {
+      "id": "languages-and-holidays",
+      "title": "שפות וחגים",
+      "collections": [
+        "russian",
+        "french",
+        "spanish",
+        "greek",
+        "english",
+        "holidays"
+      ],
+      "indexes": [
+        {
+          "title": "שירים רוסיים",
+          "collection": "russian"
+        },
+        {
+          "title": "שירים צרפתיים",
+          "collection": "french"
+        },
+        {
+          "title": "שירים ספרדיים",
+          "collection": "spanish"
+        },
+        {
+          "title": "שירים יווניים",
+          "collection": "greek"
+        },
+        {
+          "title": "שירים באנגלית",
+          "collection": "english"
+        },
+        {
+          "title": "שירי חגים",
+          "collection": "holidays"
+        }
+      ]
+    },
+    {
+      "id": "medleys",
+      "title": "מחרוזות",
+      "collections": ["medleys"],
+      "indexes": [
+        {
+          "title": "מחרוזות",
+          "scope": "chapter"
+        }
+      ]
+    }
+  ]
+}

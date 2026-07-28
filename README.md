@@ -13,6 +13,8 @@ This Python script creates both PDF and DOCX songbooks with Hebrew support, comp
   - Custom indexes based on `more.txt` files in subdirectories
   - **Separated indexes:** Independent song collections that appear in their own indexes and are excluded from the main index
   - Optional subfolder-specific indexes
+- **Chapters and collections:** Optional `book.json` control over ordered song
+  sections, collection membership, and per-chapter indexes
 - **Alphabetical Sorting:** Songs are sorted alphabetically by filename (case-insensitive)
 - **Clickable Links:** Index entries are clickable and link directly to the corresponding song pages
 - **Word Output:** Also creates an image-based `.docx` whose index links use stable Word bookmarks
@@ -55,6 +57,116 @@ output_pdf = output_folder / "רגע של אור - שירים.pdf"  # Output fil
 - **WORD_INDEX_PAGE_BREAK**: Marker placed inside `WORD_INDEX_ORDER` wherever the next index should start on a new page
 - **WORD_INDEX_ORDER**: Ordered list of DOCX index titles; rearrange the titles to change their order
 - **ENABLE_SUBFOLDER_INDEX**: Enable/disable automatic subfolder indexes (default: `True`)
+
+## Chapters and Collections
+
+The optional `book.json` manifest provides explicit control over song
+sections and indexes while keeping every index at the beginning of the book.
+It separates two concepts:
+
+- A **collection** is a folder-based set of songs.
+- A **chapter** is an ordered section of the final songbook containing one or
+  more collections and its configured indexes.
+
+A collection includes both:
+
+- PDF files physically stored in its folder; and
+- PDFs named in that folder's `more.txt`.
+
+This allows a folder to contain PDFs, a virtual list, or both. Duplicate
+references inside one collection will be removed automatically.
+
+The ownership rule avoids manual exclusions: a PDF explicitly named in
+`more.txt` belongs to that collection's chapter instead of the chapter
+containing its physical folder. Conflicting list claims from different
+chapters will produce an error. By default, every physical PDF will appear
+exactly once.
+
+Example:
+
+```json
+{
+  "version": 1,
+  "allow_duplicate_songs": false,
+  "collections": {
+    "popular": {
+      "title": "הפופולרים",
+      "folder": "הפופולרים"
+    },
+    "happy": {
+      "title": "שירים שמחים",
+      "folder": "שירים שמחים"
+    },
+    "quiet": {
+      "title": "שירים שקטים",
+      "folder": "שירים שקטים"
+    }
+  },
+  "chapters": [
+    {
+      "id": "popular",
+      "title": "הפופולרים",
+      "collections": ["popular"],
+      "indexes": [
+        {
+          "title": "הפופולרים",
+          "scope": "chapter"
+        }
+      ]
+    },
+    {
+      "id": "main",
+      "title": "השירים המרכזיים",
+      "collections": ["happy", "quiet"],
+      "indexes": [
+        {
+          "title": "כל השירים",
+          "scope": "chapter"
+        },
+        {
+          "title": "שירים שמחים",
+          "collection": "happy"
+        },
+        {
+          "title": "שירים שקטים",
+          "collection": "quiet"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Place `book.json` directly inside the configured `pdf_folder`. A complete
+four-chapter example is available at
+[`examples/book.json`](examples/book.json). Chapter order controls song order,
+while chapter and index order in the manifest control the indexes placed before
+the songs.
+
+On Windows, the example can be installed with:
+
+```powershell
+Copy-Item .\examples\book.json C:\temp\songs\pdfs\book.json
+```
+
+Then run the generator normally:
+
+```bash
+python create_song_book.py
+```
+
+Before rendering, the generator validates the manifest and prints a summary of
+resolved chapters, indexes, and unique PDFs. Invalid paths, missing list
+entries, ambiguous duplicate filenames, conflicting chapter ownership,
+unassigned PDFs, empty chapters, and empty indexes stop generation with an
+actionable error.
+
+If `book.json` is absent, the current `.separate`, `.column`, `more.txt`, and
+automatic subfolder behavior will remain available.
+
+See the [chapters feature design and implementation
+plan](docs/CHAPTERS_FEATURE_PLAN.md) for the complete schema, ownership
+algorithm, and validation rules.
 
 ## Usage
 
