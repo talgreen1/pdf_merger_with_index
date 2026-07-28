@@ -56,6 +56,93 @@ output_pdf = output_folder / "רגע של אור - שירים.pdf"  # Output fil
 - **WORD_INDEX_ORDER**: Ordered list of DOCX index titles; rearrange the titles to change their order
 - **ENABLE_SUBFOLDER_INDEX**: Enable/disable automatic subfolder indexes (default: `True`)
 
+## Planned Chapters and Collections
+
+> **Status:** This feature is designed but not implemented yet. See the
+> [detailed implementation plan](docs/CHAPTERS_FEATURE_PLAN.md).
+
+The planned `book.json` manifest will provide explicit control over song
+sections and indexes while keeping every index at the beginning of the book.
+It separates two concepts:
+
+- A **collection** is a folder-based set of songs.
+- A **chapter** is an ordered section of the final songbook containing one or
+  more collections and its configured indexes.
+
+A collection will include both:
+
+- PDF files physically stored in its folder; and
+- PDFs named in that folder's `more.txt`.
+
+This allows a folder to contain PDFs, a virtual list, or both. Duplicate
+references inside one collection will be removed automatically.
+
+The planned ownership rule avoids manual exclusions: a PDF explicitly named in
+`more.txt` belongs to that collection's chapter instead of the chapter
+containing its physical folder. Conflicting list claims from different
+chapters will produce an error. By default, every physical PDF will appear
+exactly once.
+
+Example:
+
+```json
+{
+  "version": 1,
+  "allow_duplicate_songs": false,
+  "collections": {
+    "popular": {
+      "title": "הפופולרים",
+      "folder": "הפופולרים"
+    },
+    "happy": {
+      "title": "שירים שמחים",
+      "folder": "שירים שמחים"
+    },
+    "quiet": {
+      "title": "שירים שקטים",
+      "folder": "שירים שקטים"
+    }
+  },
+  "chapters": [
+    {
+      "id": "popular",
+      "title": "הפופולרים",
+      "collections": ["popular"],
+      "indexes": [
+        {
+          "title": "הפופולרים",
+          "scope": "chapter"
+        }
+      ]
+    },
+    {
+      "id": "main",
+      "title": "השירים המרכזיים",
+      "collections": ["happy", "quiet"],
+      "indexes": [
+        {
+          "title": "כל השירים",
+          "scope": "chapter"
+        },
+        {
+          "title": "שירים שמחים",
+          "collection": "happy"
+        },
+        {
+          "title": "שירים שקטים",
+          "collection": "quiet"
+        }
+      ]
+    }
+  ]
+}
+```
+
+When implemented, chapter order will control song order, while chapter and
+index order in the manifest will control the indexes placed before the songs.
+If `book.json` is absent, the current `.separate`, `.column`, `more.txt`, and
+automatic subfolder behavior will remain available.
+
 ## Usage
 
 1. **Prepare your environment:**
