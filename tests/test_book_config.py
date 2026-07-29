@@ -234,6 +234,69 @@ class BookConfigTests(unittest.TestCase):
                 plan.indexes[1].include_songs_without_artist
             )
 
+    def test_start_on_new_page_defaults_to_false_and_can_be_enabled(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _touch_pdf(root / "songs" / "song.pdf")
+            config = {
+                "version": 1,
+                "collections": {
+                    "songs": {"title": "Songs", "folder": "songs"}
+                },
+                "chapters": [
+                    {
+                        "id": "chapter",
+                        "title": "Chapter",
+                        "collections": ["songs"],
+                        "indexes": [
+                            {"title": "First", "scope": "chapter"},
+                            {
+                                "title": "Second",
+                                "scope": "chapter",
+                                "start_on_new_page": True,
+                            },
+                        ],
+                    }
+                ],
+            }
+            self._write_config(root, config)
+
+            plan = resolve_book_config(root)
+
+            self.assertFalse(plan.indexes[0].start_on_new_page)
+            self.assertTrue(plan.indexes[1].start_on_new_page)
+
+    def test_start_on_new_page_must_be_boolean(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _touch_pdf(root / "songs" / "song.pdf")
+            config = {
+                "version": 1,
+                "collections": {
+                    "songs": {"title": "Songs", "folder": "songs"}
+                },
+                "chapters": [
+                    {
+                        "id": "chapter",
+                        "title": "Chapter",
+                        "collections": ["songs"],
+                        "indexes": [
+                            {
+                                "title": "All",
+                                "scope": "chapter",
+                                "start_on_new_page": "yes",
+                            }
+                        ],
+                    }
+                ],
+            }
+            self._write_config(root, config)
+
+            with self.assertRaisesRegex(
+                BookConfigError, r"start_on_new_page must be bool"
+            ):
+                resolve_book_config(root)
+
 
 if __name__ == "__main__":
     unittest.main()

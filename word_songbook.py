@@ -159,12 +159,14 @@ def _add_index_page(
     page_numbers,
     index_entry_spacing_pt,
     is_first=False,
+    page_break_before=False,
 ):
     title_paragraph = document.add_paragraph()
     # Word physically flips standalone headings when right alignment and
     # paragraph-level bidi are both present. Hebrew runs remain RTL without it.
     title_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     title_paragraph.paragraph_format.keep_with_next = True
+    title_paragraph.paragraph_format.page_break_before = page_break_before
     title_paragraph.paragraph_format.space_before = Pt(0 if is_first else 8)
     title_paragraph.paragraph_format.space_after = Pt(4)
     title_run = title_paragraph.add_run(title)
@@ -469,9 +471,11 @@ def create_word_songbook_from_plan(
 ):
     """Create a DOCX from normalized chapter/index data.
 
-    ``indexes`` is an ordered iterable of ``(title, entries)`` pairs, where
-    every entry is ``(display_label, pdf_path)``. All indexes are emitted
-    before the canonical ordered song list.
+    ``indexes`` is an ordered iterable of ``(title, entries)`` or
+    ``(title, entries, start_on_new_page)`` tuples, where every entry is
+    ``(display_label, pdf_path)``. A true ``start_on_new_page`` value starts
+    that index on a new page. All indexes are emitted before the canonical
+    ordered song list.
     """
     output_path = Path(output_path)
     songs = list(songs)
@@ -493,7 +497,12 @@ def create_word_songbook_from_plan(
     normal_style.paragraph_format.space_after = Pt(4)
     normal_style.paragraph_format.line_spacing = 1.25
 
-    for index_number, (title, entries) in enumerate(indexes):
+    for index_number, index_item in enumerate(indexes):
+        if len(index_item) == 2:
+            title, entries = index_item
+            start_on_new_page = False
+        else:
+            title, entries, start_on_new_page = index_item
         _add_index_page(
             document,
             title,
@@ -502,6 +511,7 @@ def create_word_songbook_from_plan(
             song_start_pages,
             index_entry_spacing_pt,
             is_first=index_number == 0,
+            page_break_before=index_number > 0 and start_on_new_page,
         )
 
     song_section = document.add_section(WD_SECTION.NEW_PAGE)

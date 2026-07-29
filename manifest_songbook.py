@@ -207,7 +207,11 @@ def generate_manifest_songbook(
     create_word_songbook_from_plan(
         output_path=output_docx,
         indexes=[
-            (resolved_index.title, resolved_index.entries)
+            (
+                resolved_index.title,
+                resolved_index.entries,
+                resolved_index.start_on_new_page,
+            )
             for resolved_index in plan.indexes
         ],
         songs=plan.song_merge_order,

@@ -163,6 +163,22 @@ book is not changed, and other indexes keep their own configured order.
 `include_songs_without_artist` defaults to `true`; set it to `false` to omit
 files without a valid `Song title - Artist` name from that index only.
 
+To force an index to begin on the next DOCX page, add
+`"start_on_new_page": true` to that index. It defaults to `false`:
+
+```json
+{
+  "title": "Songs by artist",
+  "scope": "chapter",
+  "sort": "artists",
+  "start_on_new_page": true
+}
+```
+
+The page break is placed before the index that declares it. Manifest PDF
+indexes already begin on separate pages, so this option only changes the DOCX
+layout.
+
 Run the generator normally after editing `book.json`:
 
 ```bash
