@@ -53,7 +53,7 @@ def _add_internal_link(paragraph, text, anchor):
     color.set(qn("w:val"), "0563C1")
     run_properties.append(color)
     underline = OxmlElement("w:u")
-    underline.set(qn("w:val"), "single")
+    underline.set(qn("w:val"), "none")
     run_properties.append(underline)
     run_properties.append(OxmlElement("w:rtl"))
     size = OxmlElement("w:sz")
@@ -237,10 +237,12 @@ def _configure_index_section(section):
     section.footer_distance = Cm(0.5)
 
 
-def _add_page_number_field(paragraph):
+def _add_page_number_field(paragraph, font_size_pt=14):
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = paragraph.add_run()
-    _set_run_font(run, size=9, color=RGBColor(80, 80, 80))
+    _set_run_font(
+        run, size=font_size_pt, color=RGBColor(80, 80, 80)
+    )
     begin = OxmlElement("w:fldChar")
     begin.set(qn("w:fldCharType"), "begin")
     instruction = OxmlElement("w:instrText")
@@ -255,7 +257,7 @@ def _add_page_number_field(paragraph):
     run._r.extend((begin, instruction, separate, display, end))
 
 
-def _configure_song_section(section):
+def _configure_song_section(section, page_number_font_size_pt=14):
     section.page_width = A4_WIDTH
     section.page_height = A4_HEIGHT
     section.top_margin = Cm(0.45)
@@ -265,7 +267,9 @@ def _configure_song_section(section):
     section.header_distance = Cm(0.2)
     section.footer_distance = Cm(0.2)
     section.footer.is_linked_to_previous = False
-    _add_page_number_field(section.footer.paragraphs[0])
+    _add_page_number_field(
+        section.footer.paragraphs[0], page_number_font_size_pt
+    )
 
     page_number_type = section._sectPr.find(qn("w:pgNumType"))
     if page_number_type is None:
@@ -368,6 +372,7 @@ def create_word_songbook(
     song_start_pages,
     main_index_title,
     index_entry_spacing_pt=1.5,
+    page_number_font_size_pt=14,
     include_main_index=True,
     index_order=None,
     index_page_break_marker=None,
@@ -449,7 +454,7 @@ def create_word_songbook(
         index_number += 1
 
     song_section = document.add_section(WD_SECTION.NEW_PAGE)
-    _configure_song_section(song_section)
+    _configure_song_section(song_section, page_number_font_size_pt)
     with TemporaryDirectory(prefix="word_songbook_") as temp_directory:
         _add_song_pages(
             document,
@@ -468,6 +473,7 @@ def create_word_songbook_from_plan(
     songs,
     song_start_pages,
     index_entry_spacing_pt=1.5,
+    page_number_font_size_pt=14,
 ):
     """Create a DOCX from normalized chapter/index data.
 
@@ -515,7 +521,7 @@ def create_word_songbook_from_plan(
         )
 
     song_section = document.add_section(WD_SECTION.NEW_PAGE)
-    _configure_song_section(song_section)
+    _configure_song_section(song_section, page_number_font_size_pt)
     with TemporaryDirectory(prefix="word_songbook_") as temp_directory:
         _add_song_pages(
             document,

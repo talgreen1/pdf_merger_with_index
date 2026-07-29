@@ -45,6 +45,7 @@ SEPARATE_INDEX_SPACING = 0.7 * cm  # Space between separate indexes on the same 
 # Any dynamically discovered index not listed here is appended at the end.
 # Insert WORD_INDEX_PAGE_BREAK between any two titles to start a new page.
 WORD_INDEX_ENTRY_SPACING_PT = 5
+WORD_PAGE_NUMBER_FONT_SIZE_PT = 14
 WORD_INCLUDE_MAIN_INDEX = True
 WORD_INDEX_PAGE_BREAK = "__PAGE_BREAK__"
 WORD_INDEX_ORDER = [
@@ -1174,6 +1175,7 @@ if book_config_path.exists():
         plan=book_plan,
         output_docx=output_docx,
         word_index_entry_spacing_pt=WORD_INDEX_ENTRY_SPACING_PT,
+        word_page_number_font_size_pt=WORD_PAGE_NUMBER_FONT_SIZE_PT,
     )
     raise SystemExit(0)
 
@@ -1704,6 +1706,7 @@ create_word_songbook(
     song_start_pages=all_pdf_start_page_map,
     main_index_title=INDEX_TITLE,
     index_entry_spacing_pt=WORD_INDEX_ENTRY_SPACING_PT,
+    page_number_font_size_pt=WORD_PAGE_NUMBER_FONT_SIZE_PT,
     include_main_index=WORD_INCLUDE_MAIN_INDEX,
     index_order=WORD_INDEX_ORDER,
     index_page_break_marker=WORD_INDEX_PAGE_BREAK,

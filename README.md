@@ -53,6 +53,7 @@ output_pdf = output_folder / "רגע של אור - שירים.pdf"  # Output fil
 - **INDEX_LINE_SPACING**: Spacing between songs in index (default: `0.8 * cm`)
 - **INDEX_SONG_FONT_SIZE**: Font size for song names in index (default: `18`)
 - **WORD_INDEX_ENTRY_SPACING_PT**: Vertical space after each DOCX index entry, in points
+- **WORD_PAGE_NUMBER_FONT_SIZE_PT**: Footer page-number size in the DOCX (default: `14`)
 - **WORD_INCLUDE_MAIN_INDEX**: Include (`True`) or exclude (`False`) the main DOCX index
 - **WORD_INDEX_PAGE_BREAK**: Marker placed inside `WORD_INDEX_ORDER` wherever the next index should start on a new page
 - **WORD_INDEX_ORDER**: Ordered list of DOCX index titles; rearrange the titles to change their order

@@ -23,6 +23,7 @@ def generate_manifest_songbook(
     plan,
     output_docx,
     word_index_entry_spacing_pt=5,
+    word_page_number_font_size_pt=14,
 ):
     """Generate a Word songbook from a fully resolved manifest plan."""
     output_docx = Path(output_docx)
@@ -58,6 +59,7 @@ def generate_manifest_songbook(
         songs=plan.song_merge_order,
         song_start_pages=song_start_pages,
         index_entry_spacing_pt=word_index_entry_spacing_pt,
+        page_number_font_size_pt=word_page_number_font_size_pt,
     )
 
     print(

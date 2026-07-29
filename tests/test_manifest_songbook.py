@@ -43,6 +43,7 @@ class ManifestSongbookTests(unittest.TestCase):
                 songs=[song],
                 song_start_pages={song: 1},
                 index_entry_spacing_pt=5,
+                page_number_font_size_pt=14,
             )
 
 
