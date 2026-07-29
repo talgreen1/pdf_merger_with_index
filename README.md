@@ -17,7 +17,7 @@ This Python script creates both PDF and DOCX songbooks with Hebrew support, comp
   sections, collection membership, and per-chapter indexes
 - **Alphabetical Sorting:** Songs are sorted alphabetically by filename (case-insensitive)
 - **Clickable Links:** Index entries are clickable and link directly to the corresponding song pages
-- **Word Output:** Also creates an image-based `.docx` whose index links use stable Word bookmarks
+- **Word Output:** Creates an image-based `.docx` whose index links use stable Word bookmarks
 - **Page Numbering:** Adds page numbers to all song pages
 - **Smart Page Calculation:** Automatically estimates and adjusts for index page counts
 - **Artist Name Extraction:** Automatically extracts artist information from filenames following the pattern "Song Name - Artist Name.pdf"
@@ -81,6 +81,12 @@ The ownership rule avoids manual exclusions: a PDF explicitly named in
 containing its physical folder. Conflicting list claims from different
 chapters will produce an error. By default, every physical PDF will appear
 exactly once.
+
+Ownership controls where the song pages appear, but it does not restrict index
+membership. A song physically stored in one collection and explicitly listed
+by another can appear in both collection indexes. It can also appear in an
+artist index for either configured chapter, while its song pages are still
+included only once.
 
 Example:
 
@@ -186,10 +192,11 @@ python create_song_book.py
 ```
 
 Before rendering, the generator validates the manifest and prints a summary of
-resolved chapters, indexes, and unique PDFs. Invalid paths, missing list
-entries, ambiguous duplicate filenames, conflicting chapter ownership,
-unassigned PDFs, empty chapters, and empty indexes stop generation with an
-actionable error.
+resolved chapters, indexes, and unique PDFs. It then creates only the DOCX;
+the source PDFs are read for page counts and embedded page images, but no
+merged output PDF is created. Invalid paths, missing list entries, ambiguous
+duplicate filenames, conflicting chapter ownership, unassigned PDFs, empty
+chapters, and empty indexes stop generation with an actionable error.
 
 If `book.json` is absent, the current `.separate`, `.column`, `more.txt`, and
 automatic subfolder behavior will remain available.

@@ -576,13 +576,15 @@ def resolve_book_config(pdf_root, config_path=None):
         chapter_indexes = []
         for index in chapter.indexes:
             if index.scope == "chapter":
-                candidates = list(chapter_songs)
+                candidates = []
+                candidate_seen = set()
+                for collection_id in chapter.collections:
+                    for path in collections[collection_id].songs:
+                        if path not in candidate_seen:
+                            candidates.append(path)
+                            candidate_seen.add(path)
             else:
-                candidates = [
-                    path
-                    for path in collections[index.collection].songs
-                    if song_owner.get(path) == chapter.id
-                ]
+                candidates = list(collections[index.collection].songs)
             if not index.include_songs_without_artist:
                 candidates = [
                     path

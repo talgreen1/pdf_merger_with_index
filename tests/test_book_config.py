@@ -97,7 +97,59 @@ class BookConfigTests(unittest.TestCase):
             )
             self.assertEqual(
                 [path.name for path in plan.chapters[0].indexes[1].songs],
-                ["stays.pdf"],
+                ["moved.pdf", "stays.pdf"],
+            )
+
+    def test_song_can_appear_in_physical_list_and_artist_indexes(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            song = root / "quiet" / "Thanks - Artist.pdf"
+            _touch_pdf(song)
+            _touch_pdf(root / "quiet" / "Stays - Singer.pdf")
+            (root / "greek").mkdir()
+            (root / "greek" / "more.txt").write_text(
+                "Thanks - Artist.pdf\n", encoding="utf-8"
+            )
+            config = {
+                "version": 1,
+                "collections": {
+                    "quiet": {"title": "Quiet", "folder": "quiet"},
+                    "greek": {"title": "Greek", "folder": "greek"},
+                },
+                "chapters": [
+                    {
+                        "id": "main",
+                        "title": "Main",
+                        "collections": ["quiet"],
+                        "indexes": [
+                            {"title": "Quiet", "collection": "quiet"},
+                            {
+                                "title": "Artists",
+                                "scope": "chapter",
+                                "sort": "artists",
+                                "include_songs_without_artist": False,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "languages",
+                        "title": "Languages",
+                        "collections": ["greek"],
+                        "indexes": [
+                            {"title": "Greek", "collection": "greek"}
+                        ],
+                    },
+                ],
+            }
+            self._write_config(root, config)
+
+            plan = resolve_book_config(root)
+
+            self.assertEqual(plan.song_owner[song.resolve()], "languages")
+            self.assertEqual(plan.song_merge_order.count(song.resolve()), 1)
+            self.assertEqual(
+                [index.title for index in plan.indexes if song.resolve() in index.songs],
+                ["Quiet", "Artists", "Greek"],
             )
 
     def test_conflicting_explicit_claims_are_rejected(self):

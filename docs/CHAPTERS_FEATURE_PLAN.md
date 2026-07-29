@@ -61,9 +61,10 @@ An index can cover:
 - the entire resolved chapter (`"scope": "chapter"`); or
 - one named collection (`"collection": "happy"`).
 
-A collection index is always intersected with its resolved chapter. For
-example, a song moved from the happy folder to the popular chapter must not
-remain in the happy index in the main chapter.
+Index membership is independent of song-page ownership. A song may remain in
+its physical collection index, appear in another collection's index through
+`more.txt`, and appear in a chapter-wide artist index. Its song pages are
+still emitted only once by the ownership rules below.
 
 ### Song Ownership
 
@@ -382,6 +383,9 @@ Multiple collections in the same chapter may contain the same song. This is
 not an ownership conflict; the song is emitted once in that chapter and may
 appear in more than one index if configured.
 
+Collections in different chapters may also contain the same song for indexing
+purposes. This does not duplicate the song pages.
+
 ### Phase 5: Materialize Chapters
 
 For every chapter in manifest order:
@@ -400,10 +404,12 @@ The concatenation of all resolved chapter songs becomes the single canonical
 For every chapter and index in manifest order:
 
 1. Resolve the index's candidate songs.
-2. Intersect candidates with the chapter's owned songs.
-3. Deduplicate by canonical path.
-4. Apply the index sort.
-5. Reject or warn about an empty index according to one documented policy. The
+2. For chapter scope, combine the configured chapter collections without
+   applying song ownership.
+3. For collection scope, use that collection's full membership.
+4. Deduplicate by canonical path.
+5. Apply the index sort.
+6. Reject or warn about an empty index according to one documented policy. The
    recommended initial behavior is an error because an empty configured index
    usually indicates a mistake.
 
@@ -597,7 +603,8 @@ Before rendering, print a concise plan summary:
 - Detect cross-chapter conflicts.
 - Implement unassigned-song policy.
 - Build canonical chapter songs and `song_merge_order`.
-- Build resolved indexes by intersecting collection membership with ownership.
+- Build resolved indexes from collection membership independently of
+  ownership.
 
 ### Stage 4: PDF Pipeline Integration
 
@@ -654,7 +661,8 @@ Before rendering, print a concise plan summary:
 - Assert all 11 indexes precede the first song page.
 - Assert every index page number targets the correct song page.
 - Assert popular and Greek songs do not occur in the main song pages.
-- Assert main happy and quiet indexes exclude moved songs.
+- Assert moved songs can remain in their physical collection and artist
+  indexes while also appearing in their explicit-list collection index.
 - Assert PDF and DOCX use the same song order.
 - Assert DOCX links target the correct bookmarks.
 - Run an existing folder without `book.json` and compare legacy output
@@ -680,7 +688,8 @@ The feature is complete when:
 4. Every song is emitted exactly once by default.
 5. Conflicting ownership produces an actionable error.
 6. All configured indexes appear at the beginning in manifest order.
-7. Index membership reflects final chapter ownership.
+7. Index membership reflects configured collections independently of song
+   ownership.
 8. PDF and DOCX song order and index membership match.
 9. Index page numbers, PDF links, outlines, and Word bookmarks remain correct.
 10. Existing no-manifest usage continues to work.
