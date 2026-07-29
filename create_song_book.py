@@ -1172,12 +1172,7 @@ if book_config_path.exists():
 
     generate_manifest_songbook(
         plan=book_plan,
-        output_pdf=output_pdf,
         output_docx=output_docx,
-        output_folder=output_folder,
-        font_path=hebrew_font_path,
-        create_index=create_index,
-        page_number_position=PAGE_NUMBER_POSITION,
         word_index_entry_spacing_pt=WORD_INDEX_ENTRY_SPACING_PT,
     )
     raise SystemExit(0)

@@ -40,6 +40,7 @@ class IndexDefinition:
     collection: Optional[str] = None
     sort: str = "alphabetical"
     include_songs_without_artist: bool = True
+    start_on_new_page: bool = False
 
 
 @dataclass
@@ -57,6 +58,7 @@ class ResolvedIndex:
     entries: List[Tuple[str, Path]]
     sort: str = "alphabetical"
     include_songs_without_artist: bool = True
+    start_on_new_page: bool = False
 
     @property
     def songs(self):
@@ -104,6 +106,7 @@ INDEX_KEYS = {
     "collection",
     "sort",
     "include_songs_without_artist",
+    "start_on_new_page",
 }
 COLLECTION_SORTS = {"alphabetical", "list"}
 INDEX_SORTS = {"alphabetical", "collection", "artists"}
@@ -260,12 +263,17 @@ def _parse_index(raw, location):
         bool,
         "{}.include_songs_without_artist".format(location),
     )
+    start_on_new_page = raw.get("start_on_new_page", False)
+    _expect_type(
+        start_on_new_page, bool, "{}.start_on_new_page".format(location)
+    )
     return IndexDefinition(
         title=title,
         scope=scope,
         collection=collection,
         sort=sort,
         include_songs_without_artist=include_songs_without_artist,
+        start_on_new_page=start_on_new_page,
     )
 
 
@@ -568,13 +576,15 @@ def resolve_book_config(pdf_root, config_path=None):
         chapter_indexes = []
         for index in chapter.indexes:
             if index.scope == "chapter":
-                candidates = list(chapter_songs)
+                candidates = []
+                candidate_seen = set()
+                for collection_id in chapter.collections:
+                    for path in collections[collection_id].songs:
+                        if path not in candidate_seen:
+                            candidates.append(path)
+                            candidate_seen.add(path)
             else:
-                candidates = [
-                    path
-                    for path in collections[index.collection].songs
-                    if song_owner.get(path) == chapter.id
-                ]
+                candidates = list(collections[index.collection].songs)
             if not index.include_songs_without_artist:
                 candidates = [
                     path
@@ -596,6 +606,7 @@ def resolve_book_config(pdf_root, config_path=None):
                 include_songs_without_artist=(
                     index.include_songs_without_artist
                 ),
+                start_on_new_page=index.start_on_new_page,
             )
             chapter_indexes.append(resolved_index)
             resolved_indexes.append(resolved_index)

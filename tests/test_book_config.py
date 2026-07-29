@@ -97,7 +97,59 @@ class BookConfigTests(unittest.TestCase):
             )
             self.assertEqual(
                 [path.name for path in plan.chapters[0].indexes[1].songs],
-                ["stays.pdf"],
+                ["moved.pdf", "stays.pdf"],
+            )
+
+    def test_song_can_appear_in_physical_list_and_artist_indexes(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            song = root / "quiet" / "Thanks - Artist.pdf"
+            _touch_pdf(song)
+            _touch_pdf(root / "quiet" / "Stays - Singer.pdf")
+            (root / "greek").mkdir()
+            (root / "greek" / "more.txt").write_text(
+                "Thanks - Artist.pdf\n", encoding="utf-8"
+            )
+            config = {
+                "version": 1,
+                "collections": {
+                    "quiet": {"title": "Quiet", "folder": "quiet"},
+                    "greek": {"title": "Greek", "folder": "greek"},
+                },
+                "chapters": [
+                    {
+                        "id": "main",
+                        "title": "Main",
+                        "collections": ["quiet"],
+                        "indexes": [
+                            {"title": "Quiet", "collection": "quiet"},
+                            {
+                                "title": "Artists",
+                                "scope": "chapter",
+                                "sort": "artists",
+                                "include_songs_without_artist": False,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "languages",
+                        "title": "Languages",
+                        "collections": ["greek"],
+                        "indexes": [
+                            {"title": "Greek", "collection": "greek"}
+                        ],
+                    },
+                ],
+            }
+            self._write_config(root, config)
+
+            plan = resolve_book_config(root)
+
+            self.assertEqual(plan.song_owner[song.resolve()], "languages")
+            self.assertEqual(plan.song_merge_order.count(song.resolve()), 1)
+            self.assertEqual(
+                [index.title for index in plan.indexes if song.resolve() in index.songs],
+                ["Quiet", "Artists", "Greek"],
             )
 
     def test_conflicting_explicit_claims_are_rejected(self):
@@ -233,6 +285,69 @@ class BookConfigTests(unittest.TestCase):
             self.assertFalse(
                 plan.indexes[1].include_songs_without_artist
             )
+
+    def test_start_on_new_page_defaults_to_false_and_can_be_enabled(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _touch_pdf(root / "songs" / "song.pdf")
+            config = {
+                "version": 1,
+                "collections": {
+                    "songs": {"title": "Songs", "folder": "songs"}
+                },
+                "chapters": [
+                    {
+                        "id": "chapter",
+                        "title": "Chapter",
+                        "collections": ["songs"],
+                        "indexes": [
+                            {"title": "First", "scope": "chapter"},
+                            {
+                                "title": "Second",
+                                "scope": "chapter",
+                                "start_on_new_page": True,
+                            },
+                        ],
+                    }
+                ],
+            }
+            self._write_config(root, config)
+
+            plan = resolve_book_config(root)
+
+            self.assertFalse(plan.indexes[0].start_on_new_page)
+            self.assertTrue(plan.indexes[1].start_on_new_page)
+
+    def test_start_on_new_page_must_be_boolean(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _touch_pdf(root / "songs" / "song.pdf")
+            config = {
+                "version": 1,
+                "collections": {
+                    "songs": {"title": "Songs", "folder": "songs"}
+                },
+                "chapters": [
+                    {
+                        "id": "chapter",
+                        "title": "Chapter",
+                        "collections": ["songs"],
+                        "indexes": [
+                            {
+                                "title": "All",
+                                "scope": "chapter",
+                                "start_on_new_page": "yes",
+                            }
+                        ],
+                    }
+                ],
+            }
+            self._write_config(root, config)
+
+            with self.assertRaisesRegex(
+                BookConfigError, r"start_on_new_page must be bool"
+            ):
+                resolve_book_config(root)
 
 
 if __name__ == "__main__":
