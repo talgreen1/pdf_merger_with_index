@@ -297,6 +297,7 @@ Each index must specify exactly one of `scope` and `collection`.
 | `scope` | string | conditional | `"chapter"` includes all songs owned by the chapter. |
 | `collection` | string | conditional | Includes songs from this collection that are owned by the current chapter. |
 | `sort` | string | no | Initially `alphabetical`, `collection`, or `artists`. Default: `alphabetical`. |
+| `include_songs_without_artist` | boolean | no | Include filenames without a valid `Song title - Artist` pattern. Default: `true`. |
 
 The existing artist index can be represented as:
 
@@ -304,7 +305,8 @@ The existing artist index can be represented as:
 {
   "title": "אומנים",
   "scope": "chapter",
-  "sort": "artists"
+  "sort": "artists",
+  "include_songs_without_artist": false
 }
 ```
 
@@ -317,7 +319,8 @@ anything.
 
 ### Phase 1: Load and Validate JSON
 
-1. Read `pdf_folder/book.json` as UTF-8.
+1. Read the repository-root `book.json` as UTF-8, resolving its collection
+   paths relative to `pdf_folder`.
 2. Reject malformed JSON with line and column information.
 3. Validate `version`.
 4. Validate required fields and types.

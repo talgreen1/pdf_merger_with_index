@@ -39,6 +39,7 @@ class IndexDefinition:
     scope: Optional[str] = None
     collection: Optional[str] = None
     sort: str = "alphabetical"
+    include_songs_without_artist: bool = True
 
 
 @dataclass
@@ -55,6 +56,7 @@ class ResolvedIndex:
     title: str
     entries: List[Tuple[str, Path]]
     sort: str = "alphabetical"
+    include_songs_without_artist: bool = True
 
     @property
     def songs(self):
@@ -96,7 +98,13 @@ COLLECTION_KEYS = {
     "sort",
 }
 CHAPTER_KEYS = {"id", "title", "collections", "indexes"}
-INDEX_KEYS = {"title", "scope", "collection", "sort"}
+INDEX_KEYS = {
+    "title",
+    "scope",
+    "collection",
+    "sort",
+    "include_songs_without_artist",
+}
 COLLECTION_SORTS = {"alphabetical", "list"}
 INDEX_SORTS = {"alphabetical", "collection", "artists"}
 UNASSIGNED_POLICIES = {"error", "warn", "ignore"}
@@ -244,8 +252,20 @@ def _parse_index(raw, location):
                 location, ", ".join(sorted(INDEX_SORTS))
             )
         )
+    include_songs_without_artist = raw.get(
+        "include_songs_without_artist", True
+    )
+    _expect_type(
+        include_songs_without_artist,
+        bool,
+        "{}.include_songs_without_artist".format(location),
+    )
     return IndexDefinition(
-        title=title, scope=scope, collection=collection, sort=sort
+        title=title,
+        scope=scope,
+        collection=collection,
+        sort=sort,
+        include_songs_without_artist=include_songs_without_artist,
     )
 
 
@@ -555,6 +575,12 @@ def resolve_book_config(pdf_root, config_path=None):
                     for path in collections[index.collection].songs
                     if song_owner.get(path) == chapter.id
                 ]
+            if not index.include_songs_without_artist:
+                candidates = [
+                    path
+                    for path in candidates
+                    if _extract_artist(path.stem)[0]
+                ]
             entries = _make_entries(candidates, index.sort)
             if not entries:
                 raise BookConfigError(
@@ -567,6 +593,9 @@ def resolve_book_config(pdf_root, config_path=None):
                 title=index.title,
                 entries=entries,
                 sort=index.sort,
+                include_songs_without_artist=(
+                    index.include_songs_without_artist
+                ),
             )
             chapter_indexes.append(resolved_index)
             resolved_indexes.append(resolved_index)

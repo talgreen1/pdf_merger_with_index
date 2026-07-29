@@ -185,6 +185,55 @@ class BookConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(BookConfigError, "unknown field"):
                 resolve_book_config(root)
 
+    def test_artist_sort_is_applied_only_to_the_configured_index(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _touch_pdf(root / "songs" / "Zebra - Beta.pdf")
+            _touch_pdf(root / "songs" / "Alpha - Beta.pdf")
+            _touch_pdf(root / "songs" / "Middle - Alpha.pdf")
+            _touch_pdf(root / "songs" / "Solo.pdf")
+            config = {
+                "version": 1,
+                "collections": {
+                    "songs": {"title": "Songs", "folder": "songs"}
+                },
+                "chapters": [
+                    {
+                        "id": "chapter",
+                        "title": "Chapter",
+                        "collections": ["songs"],
+                        "indexes": [
+                            {"title": "By song", "scope": "chapter"},
+                            {
+                                "title": "By artist",
+                                "scope": "chapter",
+                                "sort": "artists",
+                                "include_songs_without_artist": False,
+                            },
+                        ],
+                    }
+                ],
+            }
+            self._write_config(root, config)
+
+            plan = resolve_book_config(root)
+
+            self.assertEqual(
+                [label for label, _path in plan.indexes[0].entries],
+                ["Alpha - Beta", "Middle - Alpha", "Solo", "Zebra - Beta"],
+            )
+            self.assertEqual(
+                [label for label, _path in plan.indexes[1].entries],
+                ["Alpha - Middle", "Beta - Alpha", "Beta - Zebra"],
+            )
+            self.assertEqual(
+                [path.stem for path in plan.song_merge_order],
+                ["Alpha - Beta", "Middle - Alpha", "Solo", "Zebra - Beta"],
+            )
+            self.assertFalse(
+                plan.indexes[1].include_songs_without_artist
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
