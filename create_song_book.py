@@ -1160,7 +1160,7 @@ def create_artist_index(artist_songs, output_path, font_path, start_page=1, pdf_
     c.save()
 
 # --- Manifest mode: chapters and explicitly configured indexes ---
-book_config_path = pdf_folder / "book.json"
+book_config_path = Path(__file__).resolve().with_name("book.json")
 if book_config_path.exists():
     from book_config import BookConfigError, resolve_book_config
     from manifest_songbook import generate_manifest_songbook

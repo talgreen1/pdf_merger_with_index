@@ -137,19 +137,33 @@ Example:
 }
 ```
 
-Place `book.json` directly inside the configured `pdf_folder`. A complete
-four-chapter example is available at
-[`examples/book.json`](examples/book.json). Chapter order controls song order,
-while chapter and index order in the manifest control the indexes placed before
-the songs.
+The active manifest is the repository-root [`book.json`](book.json). Its
+collection folder paths are resolved relative to the configured `pdf_folder`;
+the PDF files themselves remain in that folder. Chapter order controls song
+order, while chapter and index order in the manifest control the indexes placed
+before the songs.
 
-On Windows, the example can be installed with:
+Each index can independently choose how its entries are sorted and displayed.
+The default is the PDF filename stem (`Song title - Artist`). To make only a
+specific index use `Artist - Song title`, add `"sort": "artists"` to that
+index:
 
-```powershell
-Copy-Item .\examples\book.json C:\temp\songs\pdfs\book.json
+```json
+{
+  "title": "Songs by artist",
+  "scope": "chapter",
+  "sort": "artists",
+  "include_songs_without_artist": false
+}
 ```
 
-Then run the generator normally:
+Artist indexes are sorted first by artist and then by song title,
+case-insensitively. The filename itself is not renamed, the song order in the
+book is not changed, and other indexes keep their own configured order.
+`include_songs_without_artist` defaults to `true`; set it to `false` to omit
+files without a valid `Song title - Artist` name from that index only.
+
+Run the generator normally after editing `book.json`:
 
 ```bash
 python create_song_book.py

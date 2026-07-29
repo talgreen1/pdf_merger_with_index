@@ -62,16 +62,18 @@
       "collections": ["happy", "quiet"],
       "indexes": [
         {
-          "title": "כל השירים",
-          "scope": "chapter"
-        },
-        {
-          "title": "שירים שמחים",
+          "title": "שירים שמחים1",
           "collection": "happy"
         },
         {
-          "title": "שירים שקטים",
+          "title": "שירים שקטים11",
           "collection": "quiet"
+        },
+        {
+          "title": "אומנים",
+          "scope": "chapter",
+          "sort": "artists",
+          "include_songs_without_artist": false
         }
       ]
     },
