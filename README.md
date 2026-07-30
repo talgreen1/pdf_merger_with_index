@@ -56,6 +56,10 @@ output_pdf = output_folder / "רגע של אור - שירים.pdf"  # Output fil
 - **WORD_DOCUMENT_TITLE**: Title displayed above the DOCX indexes (default: `"רגע של אור - ספר שירים"`)
 - **WORD_DOCUMENT_TITLE_FONT_SIZE_PT**: Font size of the main DOCX title, in points (default: `24`)
 - **WORD_INDEX_TITLE_FONT_SIZE_PT**: Font size of DOCX index names/headings, in points (default: `18`)
+- **WORD_FOOTER_LEFT_TEXT**: Text aligned to the left of the DOCX song-page footer
+- **WORD_FOOTER_RIGHT_TEXT**: Text aligned to the right of the DOCX song-page footer
+- **WORD_FOOTER_LEFT_TEXT_FONT_SIZE_PT**: Font size of the left footer text, in points (default: `14`)
+- **WORD_FOOTER_RIGHT_TEXT_FONT_SIZE_PT**: Font size of the right footer text, in points (default: `14`)
 - **WORD_PAGE_NUMBER_FONT_SIZE_PT**: Footer page-number size in the DOCX (default: `14`)
 - **WORD_INCLUDE_MAIN_INDEX**: Include (`True`) or exclude (`False`) the main DOCX index
 - **WORD_INDEX_PAGE_BREAK**: Marker placed inside `WORD_INDEX_ORDER` wherever the next index should start on a new page

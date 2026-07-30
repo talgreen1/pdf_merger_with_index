@@ -27,6 +27,10 @@ def generate_manifest_songbook(
     document_title="רגע של אור - ספר שירים",
     word_index_title_font_size_pt=18,
     word_document_title_font_size_pt=24,
+    word_footer_left_text="",
+    word_footer_right_text="",
+    word_footer_left_text_font_size_pt=14,
+    word_footer_right_text_font_size_pt=14,
 ):
     """Generate a Word songbook from a fully resolved manifest plan."""
     output_docx = Path(output_docx)
@@ -63,6 +67,10 @@ def generate_manifest_songbook(
         song_start_pages=song_start_pages,
         document_title=document_title,
         document_title_font_size_pt=word_document_title_font_size_pt,
+        footer_left_text=word_footer_left_text,
+        footer_right_text=word_footer_right_text,
+        footer_left_text_font_size_pt=word_footer_left_text_font_size_pt,
+        footer_right_text_font_size_pt=word_footer_right_text_font_size_pt,
         index_entry_spacing_pt=word_index_entry_spacing_pt,
         index_title_font_size_pt=word_index_title_font_size_pt,
         page_number_font_size_pt=word_page_number_font_size_pt,

@@ -1,6 +1,7 @@
 import unittest
 
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 
 from word_songbook import (
@@ -8,10 +9,42 @@ from word_songbook import (
     _add_index_page,
     _add_internal_link,
     _add_page_number_field,
+    _add_song_footer,
 )
 
 
 class WordSongbookTests(unittest.TestCase):
+    def test_song_footer_positions_text_around_centered_page_number(self):
+        document = Document()
+        footer = document.sections[0].footer
+
+        _add_song_footer(
+            footer,
+            page_number_font_size_pt=12,
+            left_text="Left footer",
+            right_text="Right footer",
+            left_text_font_size_pt=10,
+            right_text_font_size_pt=11,
+        )
+
+        cells = footer.tables[0].rows[0].cells
+        self.assertEqual(cells[0].text, "Left footer")
+        self.assertEqual(cells[0].paragraphs[0].runs[0].font.size.pt, 10)
+        self.assertEqual(
+            cells[0].paragraphs[0].alignment, WD_ALIGN_PARAGRAPH.LEFT
+        )
+        self.assertIsNotNone(
+            cells[1].paragraphs[0]._p.find(".//" + qn("w:instrText"))
+        )
+        self.assertEqual(
+            cells[1].paragraphs[0].alignment, WD_ALIGN_PARAGRAPH.CENTER
+        )
+        self.assertEqual(cells[2].text, "Right footer")
+        self.assertEqual(cells[2].paragraphs[0].runs[0].font.size.pt, 11)
+        self.assertEqual(
+            cells[2].paragraphs[0].alignment, WD_ALIGN_PARAGRAPH.RIGHT
+        )
+
     def test_document_title_uses_supplied_text(self):
         document = Document()
 

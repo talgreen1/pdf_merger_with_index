@@ -272,7 +272,60 @@ def _add_page_number_field(paragraph, font_size_pt=14):
     run._r.extend((begin, instruction, separate, display, end))
 
 
-def _configure_song_section(section, page_number_font_size_pt=14):
+def _add_song_footer(
+    footer,
+    page_number_font_size_pt=14,
+    left_text="",
+    right_text="",
+    left_text_font_size_pt=14,
+    right_text_font_size_pt=14,
+):
+    """Create a left-text, centered-page-number, right-text footer."""
+    table = footer.add_table(rows=1, cols=3, width=Cm(20.1))
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    _remove_table_borders(table)
+
+    cell_widths = (Cm(6.7), Cm(6.7), Cm(6.7))
+    left_cell, center_cell, right_cell = table.rows[0].cells
+    for cell, width in zip(table.rows[0].cells, cell_widths):
+        cell.width = width
+        cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        _set_cell_margins(cell, top=0, start=0, bottom=0, end=0)
+
+    left_paragraph = left_cell.paragraphs[0]
+    left_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    left_paragraph.paragraph_format.space_before = Pt(0)
+    left_paragraph.paragraph_format.space_after = Pt(0)
+    left_run = left_paragraph.add_run(left_text or "")
+    _set_run_font(left_run, size=left_text_font_size_pt)
+
+    center_paragraph = center_cell.paragraphs[0]
+    center_paragraph.paragraph_format.space_before = Pt(0)
+    center_paragraph.paragraph_format.space_after = Pt(0)
+    _add_page_number_field(center_paragraph, page_number_font_size_pt)
+
+    right_paragraph = right_cell.paragraphs[0]
+    right_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    right_paragraph.paragraph_format.space_before = Pt(0)
+    right_paragraph.paragraph_format.space_after = Pt(0)
+    right_run = right_paragraph.add_run(right_text or "")
+    _set_run_font(right_run, size=right_text_font_size_pt)
+
+    # Remove the footer's initial empty paragraph so it does not add vertical
+    # space above the table.
+    initial_paragraph = footer.paragraphs[0]
+    initial_paragraph._element.getparent().remove(initial_paragraph._element)
+
+
+def _configure_song_section(
+    section,
+    page_number_font_size_pt=14,
+    footer_left_text="",
+    footer_right_text="",
+    footer_left_text_font_size_pt=14,
+    footer_right_text_font_size_pt=14,
+):
     section.page_width = A4_WIDTH
     section.page_height = A4_HEIGHT
     section.top_margin = Cm(0.45)
@@ -282,8 +335,13 @@ def _configure_song_section(section, page_number_font_size_pt=14):
     section.header_distance = Cm(0.2)
     section.footer_distance = Cm(0.2)
     section.footer.is_linked_to_previous = False
-    _add_page_number_field(
-        section.footer.paragraphs[0], page_number_font_size_pt
+    _add_song_footer(
+        section.footer,
+        page_number_font_size_pt=page_number_font_size_pt,
+        left_text=footer_left_text,
+        right_text=footer_right_text,
+        left_text_font_size_pt=footer_left_text_font_size_pt,
+        right_text_font_size_pt=footer_right_text_font_size_pt,
     )
 
     page_number_type = section._sectPr.find(qn("w:pgNumType"))
@@ -395,6 +453,10 @@ def create_word_songbook(
     document_title=None,
     index_title_font_size_pt=18,
     document_title_font_size_pt=24,
+    footer_left_text="",
+    footer_right_text="",
+    footer_left_text_font_size_pt=14,
+    footer_right_text_font_size_pt=14,
 ):
     """Create an image-based DOCX with bookmark-backed index links."""
     output_path = Path(output_path)
@@ -477,7 +539,14 @@ def create_word_songbook(
         index_number += 1
 
     song_section = document.add_section(WD_SECTION.NEW_PAGE)
-    _configure_song_section(song_section, page_number_font_size_pt)
+    _configure_song_section(
+        song_section,
+        page_number_font_size_pt,
+        footer_left_text=footer_left_text,
+        footer_right_text=footer_right_text,
+        footer_left_text_font_size_pt=footer_left_text_font_size_pt,
+        footer_right_text_font_size_pt=footer_right_text_font_size_pt,
+    )
     with TemporaryDirectory(prefix="word_songbook_") as temp_directory:
         _add_song_pages(
             document,
@@ -500,6 +569,10 @@ def create_word_songbook_from_plan(
     document_title=None,
     index_title_font_size_pt=18,
     document_title_font_size_pt=24,
+    footer_left_text="",
+    footer_right_text="",
+    footer_left_text_font_size_pt=14,
+    footer_right_text_font_size_pt=14,
 ):
     """Create a DOCX from normalized chapter/index data.
 
@@ -552,7 +625,14 @@ def create_word_songbook_from_plan(
         )
 
     song_section = document.add_section(WD_SECTION.NEW_PAGE)
-    _configure_song_section(song_section, page_number_font_size_pt)
+    _configure_song_section(
+        song_section,
+        page_number_font_size_pt,
+        footer_left_text=footer_left_text,
+        footer_right_text=footer_right_text,
+        footer_left_text_font_size_pt=footer_left_text_font_size_pt,
+        footer_right_text_font_size_pt=footer_right_text_font_size_pt,
+    )
     with TemporaryDirectory(prefix="word_songbook_") as temp_directory:
         _add_song_pages(
             document,
