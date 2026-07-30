@@ -10,10 +10,25 @@ from word_songbook import (
     _add_internal_link,
     _add_page_number_field,
     _add_song_footer,
+    _configure_index_section,
+    _configure_song_section,
 )
 
 
 class WordSongbookTests(unittest.TestCase):
+    def test_all_sections_use_word_narrow_margins(self):
+        document = Document()
+        index_section = document.sections[0]
+        _configure_index_section(index_section)
+        song_section = document.add_section()
+        _configure_song_section(song_section)
+
+        for section in (index_section, song_section):
+            self.assertAlmostEqual(section.top_margin.inches, 0.5)
+            self.assertAlmostEqual(section.bottom_margin.inches, 0.5)
+            self.assertAlmostEqual(section.left_margin.inches, 0.5)
+            self.assertAlmostEqual(section.right_margin.inches, 0.5)
+
     def test_song_footer_positions_text_around_centered_page_number(self):
         document = Document()
         footer = document.sections[0].footer

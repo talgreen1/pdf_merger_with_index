@@ -13,6 +13,8 @@ from docx.shared import Cm, Inches, Pt, RGBColor
 
 A4_WIDTH = Cm(21)
 A4_HEIGHT = Cm(29.7)
+NARROW_MARGIN = Inches(0.5)
+NARROW_CONTENT_WIDTH = Inches(7.27)
 DAVID_FONT = "David"
 
 
@@ -244,10 +246,10 @@ def _add_index_page(
 def _configure_index_section(section):
     section.page_width = A4_WIDTH
     section.page_height = A4_HEIGHT
-    section.top_margin = Cm(1.5)
-    section.bottom_margin = Cm(1.5)
-    section.left_margin = Cm(1.4)
-    section.right_margin = Cm(1.4)
+    section.top_margin = NARROW_MARGIN
+    section.bottom_margin = NARROW_MARGIN
+    section.left_margin = NARROW_MARGIN
+    section.right_margin = NARROW_MARGIN
     section.header_distance = Cm(0.5)
     section.footer_distance = Cm(0.5)
 
@@ -281,12 +283,12 @@ def _add_song_footer(
     right_text_font_size_pt=14,
 ):
     """Create a left-text, centered-page-number, right-text footer."""
-    table = footer.add_table(rows=1, cols=3, width=Cm(20.1))
+    table = footer.add_table(rows=1, cols=3, width=NARROW_CONTENT_WIDTH)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.autofit = False
     _remove_table_borders(table)
 
-    cell_widths = (Cm(6.7), Cm(6.7), Cm(6.7))
+    cell_widths = (Inches(2.423), Inches(2.424), Inches(2.423))
     left_cell, center_cell, right_cell = table.rows[0].cells
     for cell, width in zip(table.rows[0].cells, cell_widths):
         cell.width = width
@@ -328,10 +330,10 @@ def _configure_song_section(
 ):
     section.page_width = A4_WIDTH
     section.page_height = A4_HEIGHT
-    section.top_margin = Cm(0.45)
-    section.bottom_margin = Cm(0.6)
-    section.left_margin = Cm(0.45)
-    section.right_margin = Cm(0.45)
+    section.top_margin = NARROW_MARGIN
+    section.bottom_margin = NARROW_MARGIN
+    section.left_margin = NARROW_MARGIN
+    section.right_margin = NARROW_MARGIN
     section.header_distance = Cm(0.2)
     section.footer_distance = Cm(0.2)
     section.footer.is_linked_to_previous = False
@@ -359,10 +361,10 @@ def _render_pdf_page(pdf_document, page_index, output_path):
 
 
 def _add_song_pages(document, songs, bookmark_names, image_directory):
-    max_width = 20.1
+    max_width = 18.46
     # Leave room for the inline-image line box so Word does not spill an image
     # onto an otherwise blank following page.
-    max_height = 28.0
+    max_height = 27.0
     bookmark_id = 1
     first_page = True
 
