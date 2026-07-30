@@ -45,6 +45,9 @@ SEPARATE_INDEX_SPACING = 0.7 * cm  # Space between separate indexes on the same 
 # Any dynamically discovered index not listed here is appended at the end.
 # Insert WORD_INDEX_PAGE_BREAK between any two titles to start a new page.
 WORD_INDEX_ENTRY_SPACING_PT = 5
+WORD_DOCUMENT_TITLE = "רגע של אור - ספר שירים"
+WORD_DOCUMENT_TITLE_FONT_SIZE_PT = 18
+WORD_INDEX_TITLE_FONT_SIZE_PT = 14
 WORD_PAGE_NUMBER_FONT_SIZE_PT = 14
 WORD_INCLUDE_MAIN_INDEX = True
 WORD_INDEX_PAGE_BREAK = "__PAGE_BREAK__"
@@ -1174,7 +1177,10 @@ if book_config_path.exists():
     generate_manifest_songbook(
         plan=book_plan,
         output_docx=output_docx,
+        document_title=WORD_DOCUMENT_TITLE,
+        word_document_title_font_size_pt=WORD_DOCUMENT_TITLE_FONT_SIZE_PT,
         word_index_entry_spacing_pt=WORD_INDEX_ENTRY_SPACING_PT,
+        word_index_title_font_size_pt=WORD_INDEX_TITLE_FONT_SIZE_PT,
         word_page_number_font_size_pt=WORD_PAGE_NUMBER_FONT_SIZE_PT,
     )
     raise SystemExit(0)
@@ -1705,7 +1711,10 @@ create_word_songbook(
     artist_songs=artist_songs,
     song_start_pages=all_pdf_start_page_map,
     main_index_title=INDEX_TITLE,
+    document_title=WORD_DOCUMENT_TITLE,
+    document_title_font_size_pt=WORD_DOCUMENT_TITLE_FONT_SIZE_PT,
     index_entry_spacing_pt=WORD_INDEX_ENTRY_SPACING_PT,
+    index_title_font_size_pt=WORD_INDEX_TITLE_FONT_SIZE_PT,
     page_number_font_size_pt=WORD_PAGE_NUMBER_FONT_SIZE_PT,
     include_main_index=WORD_INCLUDE_MAIN_INDEX,
     index_order=WORD_INDEX_ORDER,

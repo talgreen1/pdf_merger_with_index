@@ -100,7 +100,8 @@
         },
         {
           "title": "שירים ספרדיים",
-          "collection": "spanish"
+          "collection": "spanish",
+          "start_on_new_page": true
         },
         {
           "title": "שירים יווניים",
