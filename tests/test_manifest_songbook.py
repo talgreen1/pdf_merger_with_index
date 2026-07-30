@@ -42,7 +42,10 @@ class ManifestSongbookTests(unittest.TestCase):
                 indexes=[("All", [("Song", song)], False)],
                 songs=[song],
                 song_start_pages={song: 1},
+                document_title="רגע של אור - ספר שירים",
+                document_title_font_size_pt=24,
                 index_entry_spacing_pt=5,
+                index_title_font_size_pt=18,
                 page_number_font_size_pt=14,
             )
 

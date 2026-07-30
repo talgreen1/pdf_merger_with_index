@@ -4,6 +4,7 @@ from docx import Document
 from docx.oxml.ns import qn
 
 from word_songbook import (
+    _add_document_title,
     _add_index_page,
     _add_internal_link,
     _add_page_number_field,
@@ -11,6 +12,33 @@ from word_songbook import (
 
 
 class WordSongbookTests(unittest.TestCase):
+    def test_document_title_uses_supplied_text(self):
+        document = Document()
+
+        _add_document_title(
+            document, "רגע של אור - ספר שירים", font_size_pt=20
+        )
+
+        self.assertEqual(
+            document.paragraphs[0].text, "רגע של אור - ספר שירים"
+        )
+        self.assertEqual(document.paragraphs[0].runs[0].font.size.pt, 20)
+
+    def test_index_heading_uses_configured_font_size(self):
+        document = Document()
+
+        _add_index_page(
+            document,
+            "First index",
+            [],
+            {},
+            {},
+            5,
+            index_title_font_size_pt=22,
+        )
+
+        self.assertEqual(document.paragraphs[0].runs[0].font.size.pt, 22)
+
     def test_footer_page_number_uses_configured_font_size(self):
         document = Document()
         paragraph = document.sections[0].footer.paragraphs[0]

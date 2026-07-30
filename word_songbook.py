@@ -151,6 +151,20 @@ def _add_index_entry(
     _set_run_font(page_leader, size=11, color=RGBColor(60, 60, 60))
 
 
+def _add_document_title(document, title, font_size_pt=24):
+    """Add an optional title above the Word indexes."""
+    if not title:
+        return
+
+    paragraph = document.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.keep_with_next = True
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(10)
+    run = paragraph.add_run(title)
+    _set_run_font(run, size=font_size_pt, bold=True)
+
+
 def _add_index_page(
     document,
     title,
@@ -160,6 +174,7 @@ def _add_index_page(
     index_entry_spacing_pt,
     is_first=False,
     page_break_before=False,
+    index_title_font_size_pt=18,
 ):
     title_paragraph = document.add_paragraph()
     # Word physically flips standalone headings when right alignment and
@@ -170,7 +185,7 @@ def _add_index_page(
     title_paragraph.paragraph_format.space_before = Pt(0 if is_first else 8)
     title_paragraph.paragraph_format.space_after = Pt(4)
     title_run = title_paragraph.add_run(title)
-    _set_run_font(title_run, size=18, bold=True)
+    _set_run_font(title_run, size=index_title_font_size_pt, bold=True)
 
     half = (len(entries) + 1) // 2
     right_entries = entries[:half]
@@ -377,6 +392,9 @@ def create_word_songbook(
     index_order=None,
     index_page_break_marker=None,
     song_order=None,
+    document_title=None,
+    index_title_font_size_pt=18,
+    document_title_font_size_pt=24,
 ):
     """Create an image-based DOCX with bookmark-backed index links."""
     output_path = Path(output_path)
@@ -407,6 +425,10 @@ def create_word_songbook(
     normal_style.paragraph_format.space_before = Pt(0)
     normal_style.paragraph_format.space_after = Pt(4)
     normal_style.paragraph_format.line_spacing = 1.25
+
+    _add_document_title(
+        document, document_title, font_size_pt=document_title_font_size_pt
+    )
 
     indexes = []
     if include_main_index:
@@ -449,6 +471,7 @@ def create_word_songbook(
             bookmark_names,
             song_start_pages,
             index_entry_spacing_pt,
+            index_title_font_size_pt=index_title_font_size_pt,
             is_first=index_number == 0,
         )
         index_number += 1
@@ -474,6 +497,9 @@ def create_word_songbook_from_plan(
     song_start_pages,
     index_entry_spacing_pt=1.5,
     page_number_font_size_pt=14,
+    document_title=None,
+    index_title_font_size_pt=18,
+    document_title_font_size_pt=24,
 ):
     """Create a DOCX from normalized chapter/index data.
 
@@ -503,6 +529,10 @@ def create_word_songbook_from_plan(
     normal_style.paragraph_format.space_after = Pt(4)
     normal_style.paragraph_format.line_spacing = 1.25
 
+    _add_document_title(
+        document, document_title, font_size_pt=document_title_font_size_pt
+    )
+
     for index_number, index_item in enumerate(indexes):
         if len(index_item) == 2:
             title, entries = index_item
@@ -516,6 +546,7 @@ def create_word_songbook_from_plan(
             bookmark_names,
             song_start_pages,
             index_entry_spacing_pt,
+            index_title_font_size_pt=index_title_font_size_pt,
             is_first=index_number == 0,
             page_break_before=index_number > 0 and start_on_new_page,
         )
